@@ -1,0 +1,19 @@
+platform :ios, '17.0'
+
+target 'Fieldnotes' do
+  # Comment the next line if you don't want to use dynamic frameworks
+  use_frameworks!
+
+  # Pods for Fieldnotes
+  pod 'TensorFlowLiteSwift'
+
+  target 'FieldnotesTests' do
+    inherit! :search_paths
+    # Pods for testing
+  end
+
+  target 'FieldnotesUITests' do
+    # Pods for testing
+  end
+
+end
