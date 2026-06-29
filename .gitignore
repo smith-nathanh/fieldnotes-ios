@@ -1,0 +1,18 @@
+.DS_Store
+
+# Swift / Xcode build output
+.build/
+.swiftpm/
+DerivedData/
+build/
+
+# Xcode user state
+*.xcuserstate
+xcuserdata/
+
+# CocoaPods dependencies are restored with `pod install`.
+Fieldnotes/Pods/
+
+# Local scratch/staging artifacts kept out of source control.
+/FieldnotesApp/
+/Resources/
