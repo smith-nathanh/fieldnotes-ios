@@ -1,6 +1,17 @@
 import Foundation
 
 public enum HumanPrivacyFilter {
+    public static func isHumanWindow(
+        _ predictions: [SpeciesScore],
+        privacyThresholdPercent: Float,
+        modelClassCount: Int = 6_000
+    ) -> Bool {
+        let humanCutoff = max(10, Int(Float(modelClassCount) * privacyThresholdPercent / 100))
+        return predictions.prefix(humanCutoff).contains {
+            $0.scientificName.localizedCaseInsensitiveContains("Human")
+        }
+    }
+
     public static func filter(
         _ predictions: [[SpeciesScore]],
         privacyThresholdPercent: Float,
@@ -10,12 +21,14 @@ public enum HumanPrivacyFilter {
             return []
         }
 
-        let humanCutoff = max(10, Int(Float(modelClassCount) * privacyThresholdPercent / 100))
         var humanMask = Array(repeating: false, count: predictions.count)
 
         for index in predictions.indices {
-            let window = predictions[index].prefix(humanCutoff)
-            humanMask[index] = window.contains { $0.scientificName.localizedCaseInsensitiveContains("Human") }
+            humanMask[index] = isHumanWindow(
+                predictions[index],
+                privacyThresholdPercent: privacyThresholdPercent,
+                modelClassCount: modelClassCount
+            )
         }
 
         var neighborMask = Array(repeating: false, count: predictions.count)

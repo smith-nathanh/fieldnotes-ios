@@ -12,24 +12,36 @@ public struct DetectionSettings: Codable, Equatable, Sendable {
     public var confidenceThreshold: Float
     public var sensitivity: Float
     public var overlapSeconds: Double
+    public var privacyFilterEnabled: Bool
     public var privacyThresholdPercent: Float
     public var speciesFrequencyThreshold: Float
     public var extractionLengthSeconds: Double
+    public var latitude: Double?
+    public var longitude: Double?
+    public var week: Int?
 
     public init(
         confidenceThreshold: Float = 0.70,
         sensitivity: Float = 1.25,
         overlapSeconds: Double = 0,
+        privacyFilterEnabled: Bool = false,
         privacyThresholdPercent: Float = 0,
-        speciesFrequencyThreshold: Float = 0.003,
-        extractionLengthSeconds: Double = 6
+        speciesFrequencyThreshold: Float = 0.03,
+        extractionLengthSeconds: Double = 6,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        week: Int? = nil
     ) {
         self.confidenceThreshold = confidenceThreshold
         self.sensitivity = sensitivity
         self.overlapSeconds = overlapSeconds
+        self.privacyFilterEnabled = privacyFilterEnabled
         self.privacyThresholdPercent = privacyThresholdPercent
         self.speciesFrequencyThreshold = speciesFrequencyThreshold
         self.extractionLengthSeconds = extractionLengthSeconds
+        self.latitude = latitude
+        self.longitude = longitude
+        self.week = week
     }
 }
 

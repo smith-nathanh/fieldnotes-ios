@@ -1,4 +1,5 @@
 import Combine
+import CoreLocation
 import Foundation
 import FieldnotesCore
 
@@ -9,18 +10,35 @@ final class AppModel: ObservableObject {
     @Published private(set) var recentHits: [FieldDetection] = []
     @Published private(set) var isListening = false
     @Published private(set) var status = "Ready"
+    @Published private(set) var diagnostics = DetectionDiagnostics.empty
+    @Published private(set) var privacyFilterEnabled: Bool
+    @Published private(set) var confidenceThreshold: Float
 
     private var store = DetectionStore()
     private let repository: DetectionRepository
-    private let detector: DetectionEngine
+    private let injectedDetector: DetectionEngine?
+    private let clipWriter = AudioClipWriter()
+    private let locationService = LocationService()
     private var listeningTask: Task<Void, Never>?
+    private let defaults: UserDefaults
+    private let privacyFilterEnabledKey = "privacyFilterEnabled"
+    private let confidenceThresholdKey = "confidenceThreshold"
+    private let defaultSettings = DetectionSettings()
 
     init(
-        repository: DetectionRepository = DetectionRepository(),
-        detector: DetectionEngine = LiveDetectionEngine()
+        repository: DetectionRepository? = nil,
+        detector: DetectionEngine? = nil,
+        defaults: UserDefaults = .standard
     ) {
-        self.repository = repository
-        self.detector = detector
+        self.repository = repository ?? DetectionRepository()
+        self.injectedDetector = detector
+        self.defaults = defaults
+        self.privacyFilterEnabled = defaults.bool(forKey: privacyFilterEnabledKey)
+        if defaults.object(forKey: confidenceThresholdKey) == nil {
+            self.confidenceThreshold = defaultSettings.confidenceThreshold
+        } else {
+            self.confidenceThreshold = Self.clampedConfidenceThreshold(defaults.float(forKey: confidenceThresholdKey))
+        }
     }
 
     func load() async {
@@ -43,14 +61,23 @@ final class AppModel: ObservableObject {
         }
         isListening = true
         status = "Listening"
+        locationService.start()
 
+        let detector = injectedDetector ?? LiveDetectionEngine(settings: detectionSettings())
         listeningTask = Task { [detector] in
             do {
-                for try await detection in detector.detections() {
+                for try await event in detector.events() {
                     if Task.isCancelled {
                         break
                     }
-                    await record(detection)
+                    switch event {
+                    case .detection(let detection):
+                        await record(detection)
+                    case .diagnostics(let diagnostics):
+                        await MainActor.run {
+                            self.diagnostics = diagnostics
+                        }
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -66,6 +93,24 @@ final class AppModel: ObservableObject {
         listeningTask = nil
         isListening = false
         status = "Paused"
+        locationService.stop()
+    }
+
+    func setPrivacyFilterEnabled(_ enabled: Bool) {
+        guard !isListening else {
+            return
+        }
+        privacyFilterEnabled = enabled
+        defaults.set(enabled, forKey: privacyFilterEnabledKey)
+    }
+
+    func setConfidenceThreshold(_ threshold: Float) {
+        guard !isListening else {
+            return
+        }
+        let clampedThreshold = Self.clampedConfidenceThreshold(threshold)
+        confidenceThreshold = clampedThreshold
+        defaults.set(clampedThreshold, forKey: confidenceThresholdKey)
     }
 
     func detections(for summary: SpeciesSummary) -> [FieldDetection] {
@@ -75,9 +120,15 @@ final class AppModel: ObservableObject {
     }
 
     private func record(_ detection: FieldDetection) async {
+        let detection = detectionWithCurrentLocation(detection)
         let decision = store.record(detection)
         if case .skip = decision {
+            clipWriter.deleteClip(at: detection.clipURL)
             return
+        }
+        if case .replace(let existingID) = decision {
+            let replacedClipURL = detections.first { $0.id == existingID }?.clipURL
+            clipWriter.deleteClip(at: replacedClipURL)
         }
 
         detections = store.detections.sorted { $0.detectedAt > $1.detectedAt }
@@ -94,5 +145,35 @@ final class AppModel: ObservableObject {
     private func refreshDerivedState() {
         summaries = store.summaries()
         recentHits = detections.prefix(8).map { $0 }
+    }
+
+    private func detectionSettings() -> DetectionSettings {
+        let location = locationService.currentLocation
+        let week = Calendar(identifier: .iso8601).component(.weekOfYear, from: Date())
+
+        return DetectionSettings(
+            confidenceThreshold: confidenceThreshold,
+            privacyFilterEnabled: privacyFilterEnabled,
+            latitude: location?.coordinate.latitude,
+            longitude: location?.coordinate.longitude,
+            week: week
+        )
+    }
+
+    private func detectionWithCurrentLocation(_ detection: FieldDetection) -> FieldDetection {
+        var detection = detection
+        detection.week = Calendar(identifier: .iso8601).component(.weekOfYear, from: detection.detectedAt)
+
+        guard let location = locationService.currentLocation else {
+            return detection
+        }
+
+        detection.latitude = location.coordinate.latitude
+        detection.longitude = location.coordinate.longitude
+        return detection
+    }
+
+    private static func clampedConfidenceThreshold(_ threshold: Float) -> Float {
+        min(0.95, max(0.50, threshold))
     }
 }

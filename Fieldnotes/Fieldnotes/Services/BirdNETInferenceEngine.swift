@@ -70,6 +70,7 @@ final class BirdNETWindowClassifier {
     let labels: [String]
     let commonNames: [String: String]
     let taxa: [String: Taxon]
+    private let rangeFilter: BirdNETMetadataRangeFilter?
 
     #if canImport(TensorFlowLite)
     private let interpreter: Interpreter
@@ -80,6 +81,7 @@ final class BirdNETWindowClassifier {
         labels = try ResourceLocator.labels(named: "BirdNET_GLOBAL_6K_V2.4_Model_FP16_Labels")
         commonNames = try ResourceLocator.commonNames()
         taxa = try ResourceLocator.taxa()
+        rangeFilter = try? BirdNETMetadataRangeFilter(labels: labels, settings: settings)
 
         #if canImport(TensorFlowLite)
         let modelURL = try ResourceLocator.url(
@@ -98,6 +100,29 @@ final class BirdNETWindowClassifier {
         #endif
     }
 
+    var rangeFilterActive: Bool {
+        guard let rangeFilter else {
+            return false
+        }
+        return !rangeFilter.allowedSpecies.isEmpty
+    }
+
+    var rangeSpeciesCount: Int? {
+        guard rangeFilterActive else {
+            return nil
+        }
+        return rangeFilter?.allowedSpecies.count
+    }
+
+    func acceptableScores(from scores: [SpeciesScore]) -> [SpeciesScore] {
+        BirdNETScoring.filteredDetections(
+            rankedScores: scores,
+            allowedSpecies: rangeFilter?.allowedSpecies ?? [],
+            whitelist: [],
+            settings: settings
+        )
+    }
+
     func fieldDetection(from score: SpeciesScore, detectedAt: Date = Date()) -> FieldDetection {
         FieldDetection(
             scientificName: score.scientificName,
@@ -107,6 +132,57 @@ final class BirdNETWindowClassifier {
             detectedAt: detectedAt,
             week: Calendar(identifier: .iso8601).component(.weekOfYear, from: detectedAt)
         )
+    }
+}
+
+nonisolated final class BirdNETMetadataRangeFilter: @unchecked Sendable {
+    let allowedSpecies: Set<String>
+
+    init(labels: [String], settings: DetectionSettings) throws {
+        guard let latitude = settings.latitude,
+              let longitude = settings.longitude,
+              let week = settings.week else {
+            allowedSpecies = []
+            return
+        }
+
+        #if canImport(TensorFlowLite)
+        let modelURL: URL
+        if let v2ModelURL = try? ResourceLocator.url(
+            named: "BirdNET_GLOBAL_6K_V2.4_MData_Model_V2_FP16",
+            extension: "tflite"
+        ) {
+            modelURL = v2ModelURL
+        } else {
+            modelURL = try ResourceLocator.url(
+                named: "BirdNET_GLOBAL_6K_V2.4_MData_Model_FP16",
+                extension: "tflite"
+            )
+        }
+
+        var options = Interpreter.Options()
+        options.threadCount = 1
+        let interpreter = try Interpreter(modelPath: modelURL.path, options: options)
+        try interpreter.allocateTensors()
+
+        let metadata = [Float(latitude), Float(longitude), Float(week)]
+        let data = metadata.withUnsafeBufferPointer { buffer in
+            Data(buffer: buffer)
+        }
+        try interpreter.copy(data, toInputAt: 0)
+        try interpreter.invoke()
+
+        let output = try interpreter.output(at: 0)
+        let priors = output.data.withUnsafeBytes { rawBuffer in
+            Array(rawBuffer.bindMemory(to: Float.self))
+        }
+
+        allowedSpecies = Set(zip(labels, priors).compactMap { label, prior in
+            prior >= settings.speciesFrequencyThreshold ? label : nil
+        })
+        #else
+        allowedSpecies = []
+        #endif
     }
 }
 

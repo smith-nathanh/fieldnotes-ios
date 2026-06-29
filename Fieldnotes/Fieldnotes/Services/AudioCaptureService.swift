@@ -14,7 +14,7 @@ final class AudioCaptureService {
 
     func start(onBuffer: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void) throws {
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetooth])
+        try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP])
         try session.setActive(true)
 
         let input = engine.inputNode
@@ -28,5 +28,17 @@ final class AudioCaptureService {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         try? AVAudioSession.sharedInstance().setActive(false)
+    }
+
+    static func currentInputName() -> String? {
+        let route = AVAudioSession.sharedInstance().currentRoute
+        guard let input = route.inputs.first else {
+            return nil
+        }
+
+        if input.portType == .bluetoothHFP {
+            return "\(input.portName) HFP"
+        }
+        return input.portName
     }
 }

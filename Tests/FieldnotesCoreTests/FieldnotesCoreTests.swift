@@ -29,6 +29,15 @@ final class FieldnotesCoreTests: XCTestCase {
         XCTAssertEqual(filtered[3].first?.scientificName, "Bird_C")
     }
 
+    func testPrivacyFilterIdentifiesHumanTopCandidate() {
+        let predictions = [
+            SpeciesScore(scientificName: "Bird_A", confidence: 0.91),
+            SpeciesScore(scientificName: "Human_Human", confidence: 0.88),
+        ]
+
+        XCTAssertTrue(HumanPrivacyFilter.isHumanWindow(predictions, privacyThresholdPercent: 0))
+    }
+
     func testCooldownKeepsStrongestRepresentativeDetection() {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         let originalID = UUID()

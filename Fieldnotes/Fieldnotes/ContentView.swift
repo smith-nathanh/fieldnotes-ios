@@ -10,7 +10,12 @@ struct ContentView: View {
 
             DetectionsView()
                 .tabItem {
-                    Label("Detections", systemImage: "list.bullet.rectangle")
+                    Label("Atlas", systemImage: "book.closed")
+                }
+
+            StatsView()
+                .tabItem {
+                    Label("Stats", systemImage: "chart.bar.xaxis")
                 }
         }
     }

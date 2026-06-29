@@ -2,7 +2,7 @@ import Foundation
 import FieldnotesCore
 
 struct StubDetectionEngine: DetectionEngine {
-    func detections() -> AsyncThrowingStream<FieldDetection, Error> {
+    func events() -> AsyncThrowingStream<DetectionEngineEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 let sequence: [(String, String, Taxon, Float)] = [
@@ -18,7 +18,18 @@ struct StubDetectionEngine: DetectionEngine {
                     let item = sequence[index % sequence.count]
                     let now = Date()
                     let week = Calendar(identifier: .iso8601).component(.weekOfYear, from: now)
-                    continuation.yield(
+                    continuation.yield(.diagnostics(DetectionDiagnostics(
+                        windowsProcessed: index + 1,
+                        topCandidateName: item.1,
+                        topCandidateConfidence: item.3,
+                        audioLevel: 0.42,
+                        inferenceLatency: 0.18,
+                        privacySuppressed: false,
+                        rangeFilterActive: false,
+                        rangeSpeciesCount: nil,
+                        audioInputName: "Built-in Microphone"
+                    )))
+                    continuation.yield(.detection(
                         FieldDetection(
                             scientificName: item.0,
                             commonName: item.1,
@@ -27,7 +38,7 @@ struct StubDetectionEngine: DetectionEngine {
                             detectedAt: now,
                             week: week
                         )
-                    )
+                    ))
                     index += 1
                     try? await Task.sleep(for: .seconds(4))
                 }

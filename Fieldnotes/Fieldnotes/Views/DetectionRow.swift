@@ -10,11 +10,12 @@ struct DetectionRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(detection.commonName)
                     .font(.subheadline.weight(.semibold))
-                Text(detection.detectedAt, style: .time)
+                Text(detection.detectedAt, format: .dateTime.month().day().hour().minute())
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            ClipPlaybackButton(url: detection.clipURL)
             Text("\(Int(detection.confidence * 100))%")
                 .font(.callout.monospacedDigit().weight(.medium))
                 .foregroundStyle(confidenceColor)

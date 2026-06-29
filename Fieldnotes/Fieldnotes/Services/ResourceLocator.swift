@@ -1,7 +1,7 @@
 import Foundation
 import FieldnotesCore
 
-enum ResourceLocator {
+nonisolated enum ResourceLocator {
     static func url(named name: String, extension ext: String) throws -> URL {
         let candidateSubdirectories = [
             nil,

@@ -21,12 +21,14 @@ struct SpeciesDetailView: View {
                     HStack(spacing: 18) {
                         StatValue(title: "Clips", value: "\(summary.count)")
                         StatValue(title: "Best", value: "\(Int(summary.bestConfidence * 100))%")
+                        StatValue(title: "First", value: summary.firstSeen.formatted(.dateTime.month().day()))
+                        StatValue(title: "Last", value: summary.lastSeen.formatted(.dateTime.month().day()))
                     }
                 }
                 .padding(.vertical, 6)
             }
 
-            Section("Clips") {
+            Section("Recordings") {
                 ForEach(model.detections(for: summary)) { detection in
                     DetectionRow(detection: detection)
                 }
@@ -44,6 +46,8 @@ private struct StatValue: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
                 .font(.title3.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
