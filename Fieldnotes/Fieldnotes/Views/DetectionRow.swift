@@ -2,34 +2,32 @@ import FieldnotesCore
 import SwiftUI
 
 struct DetectionRow: View {
+    @EnvironmentObject private var model: AppModel
+
     var detection: FieldDetection
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
             TaxonBadge(taxon: detection.taxon)
             VStack(alignment: .leading, spacing: 3) {
                 Text(detection.commonName)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(.subheadline, design: .serif).weight(.semibold))
+                    .foregroundStyle(FieldStyle.ink)
                 Text(detection.detectedAt, format: .dateTime.month().day().hour().minute())
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(FieldStyle.inkFaint)
             }
             Spacer()
-            ClipPlaybackButton(url: detection.clipURL)
+            ClipPlaybackButton(url: detection.clipURL, isBlocked: model.isListening)
             Text("\(Int(detection.confidence * 100))%")
                 .font(.callout.monospacedDigit().weight(.medium))
-                .foregroundStyle(confidenceColor)
+                .foregroundStyle(FieldStyle.confidenceColor(detection.confidence))
         }
-        .padding(.vertical, 6)
-    }
-
-    private var confidenceColor: Color {
-        if detection.confidence >= 0.85 {
-            return .green
+        .padding(.vertical, 8)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(FieldStyle.rule)
+                .frame(height: 0.5)
         }
-        if detection.confidence >= 0.75 {
-            return .orange
-        }
-        return .secondary
     }
 }

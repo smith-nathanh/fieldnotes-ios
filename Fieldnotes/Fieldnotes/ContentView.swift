@@ -15,8 +15,9 @@ struct ContentView: View {
 
             StatsView()
                 .tabItem {
-                    Label("Stats", systemImage: "chart.bar.xaxis")
+                    Label("Statistics", systemImage: "chart.bar.xaxis")
                 }
         }
+        .tint(FieldStyle.moss)
     }
 }

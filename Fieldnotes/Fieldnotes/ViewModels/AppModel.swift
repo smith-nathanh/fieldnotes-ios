@@ -121,13 +121,20 @@ final class AppModel: ObservableObject {
 
     private func record(_ detection: FieldDetection) async {
         let detection = detectionWithCurrentLocation(detection)
-        let decision = store.record(detection)
-        if case .skip = decision {
-            clipWriter.deleteClip(at: detection.clipURL)
-            return
+        let decision = store.decision(for: detection)
+        let replacedClipURL: URL?
+        if case .insertReplacingClip(let existingID) = decision {
+            replacedClipURL = store.detections.first { $0.id == existingID }?.clipURL
+        } else {
+            replacedClipURL = nil
         }
-        if case .replace(let existingID) = decision {
-            let replacedClipURL = detections.first { $0.id == existingID }?.clipURL
+
+        _ = store.record(detection)
+
+        if case .insertWithoutClip = decision {
+            clipWriter.deleteClip(at: detection.clipURL)
+        }
+        if case .insertReplacingClip = decision {
             clipWriter.deleteClip(at: replacedClipURL)
         }
 
@@ -174,6 +181,6 @@ final class AppModel: ObservableObject {
     }
 
     private static func clampedConfidenceThreshold(_ threshold: Float) -> Float {
-        min(0.95, max(0.50, threshold))
+        min(0.95, max(0.30, threshold))
     }
 }

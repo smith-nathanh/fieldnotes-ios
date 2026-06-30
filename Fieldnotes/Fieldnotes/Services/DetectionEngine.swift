@@ -5,6 +5,8 @@ struct DetectionDiagnostics: Equatable, Sendable {
     var windowsProcessed: Int
     var topCandidateName: String?
     var topCandidateConfidence: Float?
+    var acceptedCandidateName: String?
+    var acceptedCandidateConfidence: Float?
     var audioLevel: Float
     var inferenceLatency: TimeInterval?
     var privacySuppressed: Bool
@@ -16,6 +18,8 @@ struct DetectionDiagnostics: Equatable, Sendable {
         windowsProcessed: 0,
         topCandidateName: nil,
         topCandidateConfidence: nil,
+        acceptedCandidateName: nil,
+        acceptedCandidateConfidence: nil,
         audioLevel: 0,
         inferenceLatency: nil,
         privacySuppressed: false,

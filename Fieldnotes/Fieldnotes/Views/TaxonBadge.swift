@@ -9,7 +9,11 @@ struct TaxonBadge: View {
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(foreground)
             .frame(width: 32, height: 32)
-            .background(background, in: Circle())
+            .background(FieldStyle.paperRecessed, in: Circle())
+            .overlay {
+                Circle()
+                    .stroke(foreground.opacity(0.28), lineWidth: 1)
+            }
             .accessibilityLabel(taxon.rawValue.capitalized)
     }
 
@@ -31,19 +35,15 @@ struct TaxonBadge: View {
     private var foreground: Color {
         switch taxon {
         case .bird:
-            return .blue
+            return FieldStyle.sky
         case .mammal:
-            return .brown
+            return FieldStyle.clay
         case .amphibian:
-            return .green
+            return FieldStyle.leaf
         case .insect:
-            return .orange
+            return FieldStyle.moss
         case .unknown:
-            return .secondary
+            return FieldStyle.inkFaint
         }
-    }
-
-    private var background: Color {
-        foreground.opacity(0.14)
     }
 }

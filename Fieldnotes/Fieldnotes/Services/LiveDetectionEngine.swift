@@ -97,6 +97,8 @@ final class LiveDetectionEngine: DetectionEngine, @unchecked Sendable {
                                     )
                                     let suppressCurrentForPrivacy = suppressNextWindowForPrivacy || isHumanWindow
                                     suppressNextWindowForPrivacy = isHumanWindow
+                                    let acceptableScores = classifier.acceptableScores(from: scores)
+                                    let acceptedScore = acceptableScores.first
 
                                     continuation.yield(.diagnostics(DetectionDiagnostics(
                                         windowsProcessed: windowsProcessed,
@@ -104,6 +106,10 @@ final class LiveDetectionEngine: DetectionEngine, @unchecked Sendable {
                                             classifier.commonNames[$0.scientificName] ?? $0.scientificName
                                         },
                                         topCandidateConfidence: scores.first?.confidence,
+                                        acceptedCandidateName: acceptedScore.map {
+                                            classifier.commonNames[$0.scientificName] ?? $0.scientificName
+                                        },
+                                        acceptedCandidateConfidence: acceptedScore?.confidence,
                                         audioLevel: audioLevel,
                                         inferenceLatency: latency,
                                         privacySuppressed: suppressCurrentForPrivacy,
@@ -112,10 +118,8 @@ final class LiveDetectionEngine: DetectionEngine, @unchecked Sendable {
                                         audioInputName: AudioCaptureService.currentInputName()
                                     )))
 
-                                    let acceptableScores = classifier.acceptableScores(from: scores)
-
                                     guard settings.privacyFilterEnabled else {
-                                        if let score = acceptableScores.first {
+                                        if let score = acceptedScore {
                                             pendingClipDetections.append(PendingClipDetection(
                                                 detection: classifier.fieldDetection(from: score),
                                                 windowStartSampleIndex: window.startSampleIndex

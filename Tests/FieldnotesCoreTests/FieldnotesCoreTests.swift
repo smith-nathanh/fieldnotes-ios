@@ -13,6 +13,15 @@ final class FieldnotesCoreTests: XCTestCase {
         XCTAssertTrue(chunks[2].suffix(sampleRate).allSatisfy { $0 == 0 })
     }
 
+    func testSplitSignalSupportsOverlappingFieldWindows() {
+        let sampleRate = 48_000
+        let samples = Array(repeating: Float(0.2), count: sampleRate * 8)
+        let chunks = AudioWindowing.splitSignal(samples, sampleRate: sampleRate, overlapSeconds: 1.5)
+
+        XCTAssertEqual(chunks.count, 5)
+        XCTAssertTrue(chunks.allSatisfy { $0.count == sampleRate * 3 })
+    }
+
     func testPrivacyFilterMasksHumanWindowAndNeighbors() {
         let predictions = [
             [SpeciesScore(scientificName: "Bird_A", confidence: 0.9)],
@@ -38,9 +47,12 @@ final class FieldnotesCoreTests: XCTestCase {
         XCTAssertTrue(HumanPrivacyFilter.isHumanWindow(predictions, privacyThresholdPercent: 0))
     }
 
-    func testCooldownKeepsStrongestRepresentativeDetection() {
+    func testCooldownCountsEveryDetectionAndKeepsStrongestClip() {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         let originalID = UUID()
+        let originalClip = URL(fileURLWithPath: "/tmp/original.caf")
+        let weakerClip = URL(fileURLWithPath: "/tmp/weaker.caf")
+        let strongerClip = URL(fileURLWithPath: "/tmp/stronger.caf")
         var store = DetectionStore(detections: [
             FieldDetection(
                 id: originalID,
@@ -48,6 +60,7 @@ final class FieldnotesCoreTests: XCTestCase {
                 commonName: "Eurasian Magpie",
                 confidence: 0.80,
                 detectedAt: start,
+                clipURL: originalClip,
                 week: 8
             )
         ])
@@ -57,6 +70,7 @@ final class FieldnotesCoreTests: XCTestCase {
             commonName: "Eurasian Magpie",
             confidence: 0.75,
             detectedAt: start.addingTimeInterval(60),
+            clipURL: weakerClip,
             week: 8
         )
         let stronger = FieldDetection(
@@ -64,21 +78,26 @@ final class FieldnotesCoreTests: XCTestCase {
             commonName: "Eurasian Magpie",
             confidence: 0.92,
             detectedAt: start.addingTimeInterval(120),
+            clipURL: strongerClip,
             week: 8
         )
 
-        XCTAssertEqual(store.record(weaker), .skip(existingID: originalID))
-        XCTAssertEqual(store.detections.count, 1)
+        XCTAssertEqual(store.record(weaker), .insertWithoutClip(existingID: originalID))
+        XCTAssertEqual(store.detections.count, 2)
+        XCTAssertEqual(store.detections[0].clipURL, originalClip)
+        XCTAssertNil(store.detections[1].clipURL)
 
         let decision = store.record(stronger)
-        guard case .replace(let replacedID) = decision else {
-            XCTFail("Expected stronger detection to replace original")
+        guard case .insertReplacingClip(let replacedID) = decision else {
+            XCTFail("Expected stronger detection to replace representative clip")
             return
         }
 
         XCTAssertEqual(replacedID, originalID)
-        XCTAssertEqual(store.detections.count, 1)
-        XCTAssertEqual(store.detections[0].confidence, 0.92)
+        XCTAssertEqual(store.detections.count, 3)
+        XCTAssertNil(store.detections[0].clipURL)
+        XCTAssertNil(store.detections[1].clipURL)
+        XCTAssertEqual(store.detections[2].clipURL, strongerClip)
     }
 
     func testScoringAppliesConfidenceAndRangeGateWithWhitelistBypass() {

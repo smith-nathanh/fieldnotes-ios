@@ -21,9 +21,9 @@ public struct DetectionSettings: Codable, Equatable, Sendable {
     public var week: Int?
 
     public init(
-        confidenceThreshold: Float = 0.70,
+        confidenceThreshold: Float = 0.60,
         sensitivity: Float = 1.25,
-        overlapSeconds: Double = 0,
+        overlapSeconds: Double = 1.5,
         privacyFilterEnabled: Bool = false,
         privacyThresholdPercent: Float = 0,
         speciesFrequencyThreshold: Float = 0.03,

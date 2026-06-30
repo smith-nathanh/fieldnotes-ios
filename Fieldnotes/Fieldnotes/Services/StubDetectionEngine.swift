@@ -22,6 +22,8 @@ struct StubDetectionEngine: DetectionEngine {
                         windowsProcessed: index + 1,
                         topCandidateName: item.1,
                         topCandidateConfidence: item.3,
+                        acceptedCandidateName: item.1,
+                        acceptedCandidateConfidence: item.3,
                         audioLevel: 0.42,
                         inferenceLatency: 0.18,
                         privacySuppressed: false,

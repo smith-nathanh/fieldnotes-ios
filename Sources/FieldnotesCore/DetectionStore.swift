@@ -1,9 +1,9 @@
 import Foundation
 
 public enum DetectionStoreDecision: Equatable, Sendable {
-    case insert
-    case replace(existingID: UUID)
-    case skip(existingID: UUID)
+    case insertWithClip
+    case insertWithoutClip(existingID: UUID)
+    case insertReplacingClip(existingID: UUID)
 }
 
 public struct DetectionStore: Sendable {
@@ -15,15 +15,18 @@ public struct DetectionStore: Sendable {
 
     public mutating func record(_ detection: FieldDetection) -> DetectionStoreDecision {
         let decision = decision(for: detection)
+        var detection = detection
         switch decision {
-        case .insert:
+        case .insertWithClip:
             detections.append(detection)
-        case .replace(let existingID):
+        case .insertWithoutClip:
+            detection.clipURL = nil
+            detections.append(detection)
+        case .insertReplacingClip(let existingID):
             if let index = detections.firstIndex(where: { $0.id == existingID }) {
-                detections[index] = detection
+                detections[index].clipURL = nil
             }
-        case .skip:
-            break
+            detections.append(detection)
         }
         return decision
     }
@@ -37,13 +40,13 @@ public struct DetectionStore: Sendable {
             $0.detectedAt <= detection.detectedAt
         }
 
-        guard let existing = candidates.max(by: { $0.detectedAt < $1.detectedAt }) else {
-            return .insert
+        guard let strongest = candidates.max(by: { $0.confidence < $1.confidence }) else {
+            return .insertWithClip
         }
-        if detection.confidence > existing.confidence {
-            return .replace(existingID: existing.id)
+        if detection.confidence > strongest.confidence {
+            return .insertReplacingClip(existingID: strongest.id)
         }
-        return .skip(existingID: existing.id)
+        return .insertWithoutClip(existingID: strongest.id)
     }
 
     public func summaries() -> [SpeciesSummary] {
