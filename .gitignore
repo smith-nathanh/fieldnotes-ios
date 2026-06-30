@@ -3,8 +3,14 @@
 # Swift / Xcode build output
 .build/
 .swiftpm/
+.venv-biocap/
 DerivedData/
 build/
+tmp/
+
+# Python validation scratch
+__pycache__/
+*.pyc
 
 # Xcode user state
 *.xcuserstate

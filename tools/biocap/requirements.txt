@@ -1,0 +1,6 @@
+open_clip_torch>=3.0.0
+torch==2.7.0
+torchvision==0.22.0
+Pillow>=10.4
+numpy>=2.0
+coremltools>=8.0; python_version < "3.13" and platform_system == "Darwin"
