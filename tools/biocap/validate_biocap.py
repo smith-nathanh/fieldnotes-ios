@@ -275,7 +275,13 @@ def parse_args() -> argparse.Namespace:
         "--batch-size",
         type=int,
         default=64,
-        help="Text embedding batch size.",
+        help="Text prompt embedding batch size.",
+    )
+    parser.add_argument(
+        "--species-batch-size",
+        type=int,
+        default=128,
+        help="Number of species to render before batched text embedding.",
     )
     parser.add_argument(
         "--device",
@@ -468,19 +474,30 @@ def encode_text_matrix(
     templates: list[str],
     label_text_type: str,
     batch_size: int,
+    species_batch_size: int,
     device: torch.device,
 ) -> np.ndarray:
     rows: list[torch.Tensor] = []
     with torch.inference_mode():
-        for item in species:
-            prompts = render_prompts(item, templates, label_text_type)
+        for start in range(0, len(species), species_batch_size):
+            species_batch = species[start : start + species_batch_size]
+            prompts = [
+                prompt
+                for item in species_batch
+                for prompt in render_prompts(item, templates, label_text_type)
+            ]
             prompt_features = []
             for batch in batched(prompts, batch_size):
                 tokens = tokenizer(batch).to(device)
                 features = model.encode_text(tokens)
                 prompt_features.append(F.normalize(features, dim=-1).cpu())
             stacked = torch.cat(prompt_features, dim=0)
-            rows.append(F.normalize(stacked.mean(dim=0, keepdim=True), dim=-1))
+            stacked = stacked.reshape(len(species_batch), len(templates), -1)
+            rows.append(F.normalize(stacked.mean(dim=1), dim=-1))
+            print(
+                f"encoded text embeddings for {start + len(species_batch)}/{len(species)} species",
+                file=sys.stderr,
+            )
     return torch.cat(rows, dim=0).numpy().astype(np.float32)
 
 
@@ -622,6 +639,7 @@ def main() -> None:
         templates=templates,
         label_text_type=args.label_text_type,
         batch_size=args.batch_size,
+        species_batch_size=args.species_batch_size,
         device=device,
     )
     saved_text_matrix = full_text_matrix.astype(args.embedding_dtype)

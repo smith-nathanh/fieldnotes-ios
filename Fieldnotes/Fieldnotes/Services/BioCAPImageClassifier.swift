@@ -52,7 +52,7 @@ final class BioCAPImageClassifier {
         let provider = try MLDictionaryFeatureProvider(dictionary: ["image": MLFeatureValue(multiArray: input)])
         let output = try model.prediction(from: provider)
         let imageEmbedding = try Self.firstMultiArray(in: output).floatArray()
-        let normalizedImageEmbedding = Self.l2Normalized(imageEmbedding)
+        let normalizedImageEmbedding = try Self.l2Normalized(imageEmbedding)
 
         let scores = species.indices.map { index -> BioCAPPhotoPrediction in
             let rowStart = index * config.embeddingDim
@@ -80,7 +80,7 @@ final class BioCAPImageClassifier {
             url = try ResourceLocator.url(named: "BioCAPVisionEncoder", extension: "mlpackage")
         }
         let configuration = MLModelConfiguration()
-        configuration.computeUnits = .all
+        configuration.computeUnits = .cpuOnly
         return try MLModel(contentsOf: url, configuration: configuration)
     }
 
@@ -120,7 +120,7 @@ final class BioCAPImageClassifier {
 
         let cropped = try centerCrop(cgImage)
         let resized = try resize(cropped, width: 224, height: 224)
-        let array = try MLMultiArray(shape: [1, 3, 224, 224], dataType: .float32)
+        let array = try MLMultiArray(shape: [1, 3, 224, 224], dataType: .float16)
         guard let data = resized.dataProvider?.data,
               let bytes = CFDataGetBytePtr(data) else {
             throw BioCAPImageClassifierError.invalidImage
@@ -181,10 +181,13 @@ final class BioCAPImageClassifier {
         }
     }
 
-    private static func l2Normalized(_ values: [Float]) -> [Float] {
+    private static func l2Normalized(_ values: [Float]) throws -> [Float] {
+        guard values.allSatisfy(\.isFinite) else {
+            throw BioCAPImageClassifierError.invalidEmbedding("BioCAP image embedding contains non-finite values.")
+        }
         let norm = sqrt(values.reduce(Float(0)) { $0 + $1 * $1 })
-        guard norm > 0 else {
-            return values
+        guard norm.isFinite, norm > 0 else {
+            throw BioCAPImageClassifierError.invalidEmbedding("BioCAP image embedding has invalid norm: \(norm).")
         }
         return values.map { $0 / norm }
     }
@@ -192,17 +195,9 @@ final class BioCAPImageClassifier {
 
 private extension MLMultiArray {
     func floatArray() throws -> [Float] {
-        let count = self.count
         switch dataType {
-        case .float32:
-            let pointer = dataPointer.bindMemory(to: Float.self, capacity: count)
-            return Array(UnsafeBufferPointer(start: pointer, count: count))
-        case .float16:
-            let pointer = dataPointer.bindMemory(to: Float16.self, capacity: count)
-            return UnsafeBufferPointer(start: pointer, count: count).map(Float.init)
-        case .double:
-            let pointer = dataPointer.bindMemory(to: Double.self, capacity: count)
-            return UnsafeBufferPointer(start: pointer, count: count).map(Float.init)
+        case .float16, .float32, .double:
+            return (0..<count).map { Float(truncating: self[$0]) }
         default:
             throw BioCAPImageClassifierError.unsupportedOutput("Unsupported output data type: \(dataType)")
         }
@@ -211,6 +206,7 @@ private extension MLMultiArray {
 
 enum BioCAPImageClassifierError: LocalizedError {
     case assetMismatch(String)
+    case invalidEmbedding(String)
     case invalidImage
     case missingOutput
     case unsupportedOutput(String)
@@ -218,6 +214,8 @@ enum BioCAPImageClassifierError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .assetMismatch(let message):
+            return message
+        case .invalidEmbedding(let message):
             return message
         case .invalidImage:
             return "Could not preprocess photo for BioCAP."

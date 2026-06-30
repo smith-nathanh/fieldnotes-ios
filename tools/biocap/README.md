@@ -299,18 +299,95 @@ Interpretation:
 - This is still a closed-set sanity check, not final product accuracy. The next
   accuracy test should use a larger candidate list with visually similar species.
 
+## Full Candidate Validation
+
+For the app spike, we moved from the 24-class closed-set test to the full
+Fieldnotes/BirdNET candidate list so the ranking includes realistic visually
+similar competitors.
+
+Build the full species list from the checked-in BirdNET labels:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/make_species_list.py \
+  --output tmp/biocap-validation/birdnet-6522-species.jsonl
+```
+
+Filter the phone-like iNaturalist manifest to labels present in that list:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/filter_image_manifest.py \
+  --species-list tmp/biocap-validation/birdnet-6522-species.jsonl \
+  --image-manifest tmp/biocap-datasets/inaturalist-phone-like-candidates/inat_image_manifest.jsonl \
+  --output tmp/biocap-validation/birdnet-6522-phone-like-birds.jsonl \
+  --write-missing tmp/biocap-validation/birdnet-6522-phone-like-excluded.jsonl
+```
+
+Result:
+
+```json
+{
+  "excludedImages": 60,
+  "inputImages": 96,
+  "keptImages": 36,
+  "speciesCount": 6522
+}
+```
+
+Run the open-set validation:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/validate_biocap.py \
+  --species-list tmp/biocap-validation/birdnet-6522-species.jsonl \
+  --image-manifest tmp/biocap-validation/birdnet-6522-phone-like-birds.jsonl \
+  --output-dir tmp/biocap-validation/birdnet-6522-phone-like-36-biocap-openai-float32 \
+  --embedding-dtype float32 \
+  --device auto \
+  --top-k 10 \
+  --batch-size 256 \
+  --species-batch-size 128
+```
+
+Parity result:
+
+```json
+{
+  "coreMLDelta": null,
+  "maxManualVisionDelta": 0.0,
+  "maxSimilarityDelta": 0.0,
+  "maxTracedDelta": null,
+  "maxVisionDelta": 0.0,
+  "passed": true,
+  "topKMismatches": 0
+}
+```
+
+Open-set ranking on the 36 overlapping phone-like images:
+
+```text
+top1:  26/36 = 0.722
+top3:  31/36 = 0.861
+top5:  31/36 = 0.861
+top10: 32/36 = 0.889
+```
+
+The misses are useful hard cases rather than evidence that the integration path
+is broken. Examples include raptors competing with other raptors, crows competing
+with other corvids, and a bullfrog image where the expected label landed at rank
+13. This is a more honest test than the 24-class run because it exercises the
+same scientific-name candidate space that can be shared with the audio pipeline.
+
 ## iOS Spike Assets
 
-Use the float32 validation output to generate local app resources for the iOS
-spike:
+Use the full-list float32 validation output to generate local app resources for
+the iOS spike:
 
 ```sh
 uv run --python .venv-biocap/bin/python tools/biocap/export_ios_assets.py \
-  --embeddings tmp/biocap-validation/inaturalist-phone-like-96-biocap-openai-float32/biocap_text_embeddings.npz \
-  --species-list tmp/biocap-datasets/inaturalist-phone-like-candidates/inat_species.jsonl \
+  --embeddings tmp/biocap-validation/birdnet-6522-phone-like-36-biocap-openai-float32/biocap_text_embeddings.npz \
+  --species-list tmp/biocap-validation/birdnet-6522-species.jsonl \
   --model tmp/biocap-validation/coreml-smoke-run-static-manual/BioCAPVisionEncoder.mlpackage \
-  --image-manifest tmp/biocap-datasets/inaturalist-phone-like-candidates/inat_image_manifest.jsonl \
-  --rankings tmp/biocap-validation/inaturalist-phone-like-96-biocap-openai-float32/rankings.csv \
+  --image-manifest tmp/biocap-validation/birdnet-6522-phone-like-birds.jsonl \
+  --rankings tmp/biocap-validation/birdnet-6522-phone-like-36-biocap-openai-float32/rankings.csv \
   --fixture-scientific-name 'Calypte anna'
 ```
 
@@ -324,7 +401,9 @@ That writes generated resources under
 - `TestFixtures/BioCAPFixture.jpg` and `.json`: one top-1 fixture for XCTest.
 
 The generated directory is ignored by Git because the model package is about
-165 MB and should be regenerated from validation artifacts.
+165 MB and should be regenerated from validation artifacts. In this full-list
+spike, the raw float32 text matrix is about 13 MB and the generated BioCAP
+resource directory is about 178 MB.
 
 The iOS spike currently consists of:
 
@@ -349,6 +428,8 @@ xcodebuild test \
 Result: passed. The app bundle contained Xcode's compiled
 `BioCAPVisionEncoder.mlmodelc`, float32 cached text embeddings, and the
 `Calypte anna` fixture; the fixture ranked the expected scientific name first.
+The simulator path uses CPU-only Core ML execution because `.all` returned a
+zero image embedding for this converted model on the tested simulator runtime.
 
 ## Smoke Result In This Checkout
 
