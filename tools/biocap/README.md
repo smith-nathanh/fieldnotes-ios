@@ -168,6 +168,137 @@ coremltools can convert the raw traced OpenCLIP vision module directly.
 After this passes, add real-image Core ML parity and device latency measurements
 before app integration.
 
+## Representative Phone-Like Validation
+
+On 2026-06-30 we ran a larger validation pass to answer whether the test photos
+look like plausible phone-camera field photos. The goal was not to create a final
+benchmark, but to decide whether BioCAP is credible enough for an iOS integration
+spike.
+
+Build a broader iNaturalist sample:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/prepare_inaturalist_photos.py \
+  --accept-terms \
+  --images-per-taxon 4 \
+  --output-dir tmp/biocap-datasets/inaturalist-phone-like-candidates
+```
+
+This produced 96 images across 24 taxa:
+
+- birds: hummingbird, hawk, crow, cardinal, robin
+- mammals: deer, squirrel, rabbit
+- amphibians/reptiles: frogs, salamander, anole, turtle, snake
+- insects: butterfly, bee, lady beetle, mantis
+- plants/fungi: dandelion, maple, clover, turkey tail, fly agaric, oyster mushroom
+
+Create contact sheets for visual QA:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/make_contact_sheets.py \
+  --manifest tmp/biocap-datasets/inaturalist-phone-like-candidates/inat_image_manifest.jsonl \
+  --output-dir tmp/biocap-validation/phone-like-contact-sheets
+```
+
+Visual inspection found that most images are representative of the target app
+use case: close or zoomed field shots of a single organism, often with natural
+background clutter. The set also includes useful hard cases: distant birds,
+trail-camera-like frames, and two obvious screenshot artifacts for cardinal.
+Those artifacts should not be treated as representative phone photos, but keeping
+them in the conservative run is useful.
+
+Run BioCAP with the official prompt ensemble and `float16` cached text embeddings:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/validate_biocap.py \
+  --species-list tmp/biocap-datasets/inaturalist-phone-like-candidates/inat_species.jsonl \
+  --image-manifest tmp/biocap-datasets/inaturalist-phone-like-candidates/inat_image_manifest.jsonl \
+  --output-dir tmp/biocap-validation/inaturalist-phone-like-96-biocap-openai \
+  --trace-vision \
+  --embedding-dtype float16 \
+  --device cpu
+```
+
+Result:
+
+```json
+{
+  "coreMLDelta": null,
+  "maxManualVisionDelta": 6.556510925292969e-07,
+  "maxSimilarityDelta": 4.547834396362305e-05,
+  "maxTracedDelta": 6.556510925292969e-07,
+  "maxVisionDelta": 0.0,
+  "passed": false,
+  "topKMismatches": 1
+}
+```
+
+The `float16` run had one strict top-k ordering mismatch on a near-tie, but the
+top-1 prediction and expected-label rank did not change. The mismatch was on
+`Amanita muscaria`; both full and cached rankings still had `Amanita muscaria`
+as top-1.
+
+Run the same validation with `float32` cached text embeddings:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/validate_biocap.py \
+  --species-list tmp/biocap-datasets/inaturalist-phone-like-candidates/inat_species.jsonl \
+  --image-manifest tmp/biocap-datasets/inaturalist-phone-like-candidates/inat_image_manifest.jsonl \
+  --output-dir tmp/biocap-validation/inaturalist-phone-like-96-biocap-openai-float32 \
+  --trace-vision \
+  --embedding-dtype float32 \
+  --device cpu
+```
+
+Result:
+
+```json
+{
+  "coreMLDelta": null,
+  "maxManualVisionDelta": 6.556510925292969e-07,
+  "maxSimilarityDelta": 0.0,
+  "maxTracedDelta": 6.556510925292969e-07,
+  "maxVisionDelta": 0.0,
+  "passed": true,
+  "topKMismatches": 0
+}
+```
+
+Closed-set ranking on the 96-image set:
+
+```text
+top1: 95/96 = 0.990
+top3: 96/96 = 1.000
+top5: 96/96 = 1.000
+top10: 96/96 = 1.000
+```
+
+The only top-1 miss was one of the obvious cardinal screenshot artifacts:
+
+```text
+expected: Cardinalis cardinalis
+top1:     Turdus migratorius
+rank:     2
+```
+
+Excluding the two cardinal screenshot artifacts:
+
+```text
+top1: 94/94 = 1.000
+top3: 94/94 = 1.000
+top5: 94/94 = 1.000
+top10: 94/94 = 1.000
+```
+
+Interpretation:
+
+- This is strong enough to proceed to an iOS integration spike.
+- Use `float32` label embeddings first for exact parity and simpler debugging.
+- Re-test `float16` later if bundle size matters; the observed drift was small
+  and did not affect top-1 on this run.
+- This is still a closed-set sanity check, not final product accuracy. The next
+  accuracy test should use a larger candidate list with visually similar species.
+
 ## Smoke Result In This Checkout
 
 Using a local AvianVisitors illustration as a mechanics-only test image, the
