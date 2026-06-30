@@ -8,6 +8,9 @@ nonisolated enum ResourceLocator {
             "Resources/Models",
             "Resources/Labels",
             "Resources/TestFixtures",
+            "Resources/BioCAP",
+            "Resources/BioCAP/Models",
+            "Resources/BioCAP/TestFixtures",
         ]
 
         for subdirectory in candidateSubdirectories {

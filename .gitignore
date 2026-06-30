@@ -22,3 +22,6 @@ Fieldnotes/Pods/
 # Local scratch/staging artifacts kept out of source control.
 /FieldnotesApp/
 /Resources/
+
+# Generated BioCAP iOS spike assets; regenerate with tools/biocap/export_ios_assets.py.
+/Fieldnotes/Fieldnotes/Resources/BioCAP/

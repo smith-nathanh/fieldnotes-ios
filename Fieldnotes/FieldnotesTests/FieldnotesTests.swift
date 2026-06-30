@@ -1,5 +1,6 @@
 import XCTest
 import FieldnotesCore
+import UIKit
 @testable import Fieldnotes
 
 final class FieldnotesTests: XCTestCase {
@@ -27,4 +28,35 @@ final class FieldnotesTests: XCTestCase {
         XCTAssertGreaterThan(filter.allowedSpecies.count, 50)
         XCTAssertLessThan(filter.allowedSpecies.count, labels.count)
     }
+
+    func testBioCAPFixtureRanksExpectedSpeciesWhenLocalAssetsExist() throws {
+        guard let fixtureURL = try? ResourceLocator.url(
+            named: "BioCAPFixture",
+            extension: "jpg"
+        ),
+              let expectedURL = try? ResourceLocator.url(
+                named: "BioCAPFixture",
+                extension: "json"
+              ) else {
+            throw XCTSkip("Generate local BioCAP assets with tools/biocap/export_ios_assets.py")
+        }
+
+        let expectedData = try Data(contentsOf: expectedURL)
+        let expected = try JSONDecoder().decode(BioCAPFixtureExpectation.self, from: expectedData)
+        let imageData = try Data(contentsOf: fixtureURL)
+        guard let image = UIImage(data: imageData) else {
+            XCTFail("Could not load BioCAP fixture image")
+            return
+        }
+
+        let classifier = try BioCAPImageClassifier()
+        let predictions = try classifier.classify(image, limit: 5)
+
+        XCTAssertEqual(predictions.first?.scientificName, expected.expectedScientificName)
+        XCTAssertTrue(predictions.contains { $0.scientificName == expected.expectedScientificName })
+    }
+}
+
+private struct BioCAPFixtureExpectation: Decodable {
+    var expectedScientificName: String
 }

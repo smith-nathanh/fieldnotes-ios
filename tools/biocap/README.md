@@ -1,7 +1,7 @@
 # BioCAP Phase 0 Validation
 
-This directory is only for workstation validation. It does not wire BioCAP into the
-iOS app.
+This directory is for workstation validation and the narrow iOS integration
+spike. It does not wire BioCAP into the product UI.
 
 The goal is to prove the deployment assumption from `BIOCAP-MODEL.md`:
 
@@ -298,6 +298,57 @@ Interpretation:
   and did not affect top-1 on this run.
 - This is still a closed-set sanity check, not final product accuracy. The next
   accuracy test should use a larger candidate list with visually similar species.
+
+## iOS Spike Assets
+
+Use the float32 validation output to generate local app resources for the iOS
+spike:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/export_ios_assets.py \
+  --embeddings tmp/biocap-validation/inaturalist-phone-like-96-biocap-openai-float32/biocap_text_embeddings.npz \
+  --species-list tmp/biocap-datasets/inaturalist-phone-like-candidates/inat_species.jsonl \
+  --model tmp/biocap-validation/coreml-smoke-run-static-manual/BioCAPVisionEncoder.mlpackage \
+  --image-manifest tmp/biocap-datasets/inaturalist-phone-like-candidates/inat_image_manifest.jsonl \
+  --rankings tmp/biocap-validation/inaturalist-phone-like-96-biocap-openai-float32/rankings.csv \
+  --fixture-scientific-name 'Calypte anna'
+```
+
+That writes generated resources under
+`Fieldnotes/Fieldnotes/Resources/BioCAP/`:
+
+- `BioCAPTextEmbeddings.f32`: row-major float32 text embedding matrix.
+- `BioCAPSpecies.json`: scientific-name keyed species metadata.
+- `BioCAPConfig.json`: embedding shape and prompt/export metadata.
+- `Models/BioCAPVisionEncoder.mlpackage`: normalized image encoder.
+- `TestFixtures/BioCAPFixture.jpg` and `.json`: one top-1 fixture for XCTest.
+
+The generated directory is ignored by Git because the model package is about
+165 MB and should be regenerated from validation artifacts.
+
+The iOS spike currently consists of:
+
+- `BioCAPImageClassifier`, which loads Xcode's compiled `.mlmodelc` or a local
+  `.mlpackage`, preprocesses a `UIImage` to BioCAP/OpenCLIP's 224x224 tensor,
+  decodes float16/float32 model output, normalizes it, and ranks against cached
+  text embeddings.
+- `testBioCAPFixtureRanksExpectedSpeciesWhenLocalAssetsExist`, which skips when
+  local BioCAP assets are absent and runs a real Core ML fixture classification
+  when they are present.
+
+Validation run on 2026-06-30:
+
+```sh
+xcodebuild test \
+  -workspace Fieldnotes.xcworkspace \
+  -scheme Fieldnotes \
+  -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.4.1' \
+  -only-testing:FieldnotesTests/FieldnotesTests/testBioCAPFixtureRanksExpectedSpeciesWhenLocalAssetsExist
+```
+
+Result: passed. The app bundle contained Xcode's compiled
+`BioCAPVisionEncoder.mlmodelc`, float32 cached text embeddings, and the
+`Calypte anna` fixture; the fixture ranked the expected scientific name first.
 
 ## Smoke Result In This Checkout
 
