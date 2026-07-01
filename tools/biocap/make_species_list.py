@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a BioCAP candidate species list from Fieldnotes BirdNET resources."""
+"""Build a BirdNET/audio-overlap BioCAP candidate species list."""
 
 from __future__ import annotations
 
@@ -10,7 +10,10 @@ from pathlib import Path
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Create a JSONL species list from bundled Fieldnotes labels."
+        description=(
+            "Create a JSONL species list from bundled Fieldnotes/BirdNET audio "
+            "labels. Use make_image_species_list.py for image-native candidates."
+        )
     )
     parser.add_argument(
         "--repo-root",
@@ -70,7 +73,7 @@ def main() -> None:
             {
                 "scientificName": scientific_name,
                 "commonName": common_names.get(scientific_name, scientific_name),
-                "taxon": taxa.get(scientific_name, "unknown"),
+                "taxon": taxa.get(scientific_name, "bird"),
             }
         )
 

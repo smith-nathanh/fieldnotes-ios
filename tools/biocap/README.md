@@ -190,7 +190,8 @@ This produced 96 images across 24 taxa:
 - mammals: deer, squirrel, rabbit
 - amphibians/reptiles: frogs, salamander, anole, turtle, snake
 - insects: butterfly, bee, lady beetle, mantis
-- plants/fungi: dandelion, maple, clover, turkey tail, fly agaric, oyster mushroom
+- plants/trees: dandelion, maple, clover
+- fungi: turkey tail, fly agaric, oyster mushroom
 
 Create contact sheets for visual QA:
 
@@ -299,13 +300,15 @@ Interpretation:
 - This is still a closed-set sanity check, not final product accuracy. The next
   accuracy test should use a larger candidate list with visually similar species.
 
-## Full Candidate Validation
+## Audio-Overlap Candidate Validation
 
-For the app spike, we moved from the 24-class closed-set test to the full
-Fieldnotes/BirdNET candidate list so the ranking includes realistic visually
-similar competitors.
+For the first app spike, we moved from the 24-class closed-set test to the full
+Fieldnotes/BirdNET candidate list. This is useful for validating mechanics and
+the photo/audio merge key, but it is **not** the final image candidate list.
+BirdNET is an audio label set and does not contain many visually identifiable
+taxa, including beetles and many other invertebrates.
 
-Build the full species list from the checked-in BirdNET labels:
+Build the audio-overlap species list from the checked-in BirdNET labels:
 
 ```sh
 uv run --python .venv-biocap/bin/python tools/biocap/make_species_list.py \
@@ -373,23 +376,315 @@ top10: 32/36 = 0.889
 The misses are useful hard cases rather than evidence that the integration path
 is broken. Examples include raptors competing with other raptors, crows competing
 with other corvids, and a bullfrog image where the expected label landed at rank
-13. This is a more honest test than the 24-class run because it exercises the
-same scientific-name candidate space that can be shared with the audio pipeline.
+13. This is a more honest mechanics test than the 24-class run, but it should be
+read as audio-overlap validation only.
+
+## Image-Native Candidate Lists
+
+The image model should classify against an image-native candidate list. It does
+not need to be restricted to species that BirdNET can hear. When an image label
+and an audio label share the same `scientificName`, the app can merge those
+sources into one Atlas species entry. When there is no audio equivalent, the
+photo prediction should still be shown as an image-only result.
+
+Build a beetle-inclusive smoke list from BioCAP's wiki-species export plus the
+BirdNET overlap labels:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/make_image_species_list.py \
+  --order Coleoptera \
+  --include-birdnet \
+  --output tmp/biocap-validation/image-coleoptera-plus-birdnet-species.jsonl
+```
+
+That list includes BioCAP taxonomy rows for beetles, including Lucanidae/stag
+beetle genera, while still preserving BirdNET rows for audio/photo overlap.
+The generated JSONL records include `scientificName`, `commonName`, `taxon`,
+taxonomic context such as `class`, `order`, and `family`, and a `sources` array
+that records whether the row came from BioCAP wiki species, BirdNET labels, or
+both.
+
+On the local BioCAP taxonomy export, the Coleoptera + BirdNET command produced
+41,700 rows: 35,178 beetle rows plus the 6,522 BirdNET overlap rows.
+
+For the first app pass, leave out plants and fungi. The local BioCAP taxonomy
+export has 107,026 global plant rows and 12,915 fungi rows, so excluding them
+keeps the first image-native matrix smaller and reduces irrelevant lookalike
+competition. Add plants/trees later as a separate candidate-list expansion.
+The animal-only smoke list below produced 72,574 rows on the local taxonomy
+export.
+
+Other useful scoped lists:
+
+```sh
+# Stag beetle family only, useful for very fast debugging.
+uv run --python .venv-biocap/bin/python tools/biocap/make_image_species_list.py \
+  --family Lucanidae \
+  --include-birdnet \
+  --output tmp/biocap-validation/image-lucanidae-plus-birdnet-species.jsonl
+
+# Broader phone-photo animal smoke list. This omits plants and fungi.
+uv run --python .venv-biocap/bin/python tools/biocap/make_image_species_list.py \
+  --class-name Aves \
+  --class-name Mammalia \
+  --class-name Amphibia \
+  --class-name Reptilia \
+  --order Coleoptera \
+  --order Odonata \
+  --order Orthoptera \
+  --exclude-kingdom Plantae \
+  --exclude-kingdom Fungi \
+  --include-birdnet \
+  --output tmp/biocap-validation/image-field-animals-no-plants-fungi-species.jsonl
+```
+
+Use the generated image-native JSONL anywhere `validate_biocap.py` or
+`export_ios_assets.py` accepts `--species-list`. For example, the next app asset
+export should point at an image-native file instead of
+`birdnet-6522-species.jsonl`.
+
+Run BioCAP validation against that image-native candidate list before exporting:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/validate_biocap.py \
+  --species-list tmp/biocap-validation/image-coleoptera-plus-birdnet-species.jsonl \
+  --images /path/to/field-photo.jpg \
+  --output-dir tmp/biocap-validation/image-coleoptera-plus-birdnet-biocap-openai-float32 \
+  --embedding-dtype float32 \
+  --device auto \
+  --top-k 10 \
+  --batch-size 256 \
+  --species-batch-size 128
+```
+
+The official BioCAP prompt ensemble is much slower than the single-prompt
+mechanics check because every species is embedded across many prompt templates.
+On 2026-06-30, an interactive Coleoptera + BirdNET run on Apple `mps` was
+stopped after 768/41,700 species because it was on track to take hours. For
+quick iteration, use the smaller Lucanidae smoke list or run the broad export as
+a long cached job.
+
+### L4 Cloud Embedding Job
+
+Use SkyPilot for the full animal-only text embedding run. The L4 config follows
+the newer GCP/autostop pattern from `~/proj/safety-reasoners` and
+`~/proj/colfastvlm`, mounts the local BioCAP wiki-species CSVs, builds the
+animal-only species list, and writes resumable text-embedding shards:
+
+```sh
+sky launch -c fieldnotes-biocap-l4 tools/biocap/skypilot/l4-embed-text.yaml
+```
+
+For a real run, mount a GCS bucket in
+`tools/biocap/skypilot/l4-embed-text.yaml` and point `BIOCAP_OUTPUT_DIR` at that
+mount so spot-preempted work and completed artifacts survive VM teardown:
+
+```sh
+sky launch -c fieldnotes-biocap-l4 tools/biocap/skypilot/l4-embed-text.yaml \
+  --env BIOCAP_OUTPUT_DIR=/gcs/fieldnotes-biocap/image-field-animals-no-plants-fungi-l4-float32
+```
+
+The embedding job writes:
+
+- `biocap_text_embeddings.npz`: final averaged/normalized text matrix.
+- `embedding_report.json`: model, prompt, dtype, count, device, and shard summary.
+- `text_embedding_shards/*.npz`: resumable per-batch shards.
+- a copy of the generated species JSONL used for the matrix.
+
+The output from `embed_biocap_text.py` can be passed directly to
+`export_ios_assets.py` as `--embeddings`.
+
+Cloud run completed on 2026-07-01. The final report:
+
+```json
+{
+  "batchSize": 512,
+  "device": "cuda",
+  "embeddingDim": 512,
+  "embeddingDtype": "float32",
+  "labelTextType": "scientific",
+  "model": "hf-hub:imageomics/biocap",
+  "promptPreset": "biocap-openai",
+  "promptTemplateCount": 81,
+  "shardCount": 142,
+  "speciesBatchSize": 512,
+  "speciesCount": 72574
+}
+```
+
+Pull the completed artifacts:
+
+```sh
+mkdir -p tmp/biocap-validation/cloud-l4-animal-only
+gcloud storage cat \
+  gs://fieldnotes-biocap/image-field-animals-no-plants-fungi-l4-float32/biocap_text_embeddings.npz \
+  > tmp/biocap-validation/cloud-l4-animal-only/biocap_text_embeddings.npz
+gcloud storage cat \
+  gs://fieldnotes-biocap/image-field-animals-no-plants-fungi-l4-float32/image-field-animals-no-plants-fungi-species.jsonl \
+  > tmp/biocap-validation/cloud-l4-animal-only/image-field-animals-no-plants-fungi-species.jsonl
+gcloud storage cat \
+  gs://fieldnotes-biocap/image-field-animals-no-plants-fungi-l4-float32/embedding_report.json \
+  > tmp/biocap-validation/cloud-l4-animal-only/embedding_report.json
+```
+
+Export the animal-only matrix into local iOS resources:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/export_ios_assets.py \
+  --embeddings tmp/biocap-validation/cloud-l4-animal-only/biocap_text_embeddings.npz \
+  --species-list tmp/biocap-validation/cloud-l4-animal-only/image-field-animals-no-plants-fungi-species.jsonl \
+  --model tmp/biocap-validation/coreml-smoke-run-static-manual/BioCAPVisionEncoder.mlpackage
+```
+
+That produced:
+
+```text
+BioCAPTextEmbeddings.f32   142 MB
+BioCAPSpecies.json         9.6 MB
+speciesCount               72,574
+```
+
+Enrich common names before exporting if the species list came from BioCAP wiki
+species. BirdNET overlap rows already have common names, but most wiki rows use
+the scientific name as a placeholder. The enrichment step preserves row order, so
+it can be used with the existing embedding matrix:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/enrich_common_names.py \
+  --species-list tmp/biocap-validation/cloud-l4-animal-only/image-field-animals-no-plants-fungi-species.jsonl \
+  --output tmp/biocap-validation/cloud-l4-animal-only/image-field-animals-no-plants-fungi-species.enriched.jsonl
+```
+
+The current offline enrichment sources are:
+
+- `Fieldnotes/Fieldnotes/Resources/Labels/labels_en.json` for BirdNET overlap.
+- `tools/biocap/common_name_overrides.json` for manual fixes.
+- optional `--vernacular-jsonl` / `--vernacular-csv` inputs for future
+  iNaturalist/GBIF-style exports.
+
+If an exact common name is missing, the script falls back from an infraspecies to
+the parent binomial when available. For example:
+
+```text
+Sylvilagus floridanus nigronuchalis -> Eastern Cottontail
+```
+
+After enrichment, export using the enriched JSONL:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/export_ios_assets.py \
+  --embeddings tmp/biocap-validation/cloud-l4-animal-only/biocap_text_embeddings.npz \
+  --species-list tmp/biocap-validation/cloud-l4-animal-only/image-field-animals-no-plants-fungi-species.enriched.jsonl \
+  --model tmp/biocap-validation/coreml-smoke-run-static-manual/BioCAPVisionEncoder.mlpackage
+```
+
+Retest a photo against cached embeddings without recomputing text:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/classify_biocap_cached.py \
+  --embeddings tmp/biocap-validation/cloud-l4-animal-only/biocap_text_embeddings.npz \
+  --species-list tmp/biocap-validation/cloud-l4-animal-only/image-field-animals-no-plants-fungi-species.jsonl \
+  --images tmp/biocap-validation/user-beetle-screenshot-crop.jpg \
+  --output tmp/biocap-validation/cloud-l4-animal-only/user-beetle-cached-rankings.csv \
+  --top-k 10 \
+  --device auto
+```
+
+The beetle screenshot crop ranked as stag beetles with the full animal-only
+matrix:
+
+```text
+1. Lucanus marazziorum      0.383
+2. Lucanus parryi           0.377
+3. Lucanus fortunei         0.376
+4. Lucanus swinhoei         0.373
+5. Cyclommatus lunifer      0.368
+```
+
+The iOS fixture test passed against the exported 72,574-species resources:
+
+```sh
+xcodebuild test \
+  -workspace Fieldnotes.xcworkspace \
+  -scheme Fieldnotes \
+  -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.4.1' \
+  -only-testing:FieldnotesTests/FieldnotesTests/testBioCAPFixtureRanksExpectedSpeciesWhenLocalAssetsExist
+```
+
+Result: passed. The fixture ranked the expected species first in 6.281 seconds.
+
+### Beetle Screenshot Sanity Check
+
+The user-provided beetle example was a screenshot of the app UI, not the raw
+camera image, so a clean accuracy claim would be overstated. For a directional
+check, the visible photo area was cropped to:
+
+```text
+tmp/biocap-validation/user-beetle-screenshot-crop.jpg
+```
+
+Build a Lucanidae-only candidate list:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/make_image_species_list.py \
+  --family Lucanidae \
+  --output tmp/biocap-validation/image-lucanidae-only-species.jsonl
+```
+
+Run the official BioCAP prompt path:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/validate_biocap.py \
+  --species-list tmp/biocap-validation/image-lucanidae-only-species.jsonl \
+  --images tmp/biocap-validation/user-beetle-screenshot-crop.jpg \
+  --output-dir tmp/biocap-validation/image-lucanidae-user-beetle-biocap-openai-float32 \
+  --embedding-dtype float32 \
+  --device auto \
+  --top-k 10 \
+  --batch-size 256 \
+  --species-batch-size 256
+```
+
+Result:
+
+```json
+{
+  "passed": true,
+  "topKMismatches": 0,
+  "maxSimilarityDelta": 0.0,
+  "maxVisionDelta": 0.0,
+  "maxManualVisionDelta": 0.0
+}
+```
+
+Top candidates:
+
+```text
+1. Lucanus marazziorum      0.383
+2. Lucanus parryi           0.377
+3. Lucanus fortunei         0.376
+4. Lucanus swinhoei         0.373
+5. Cyclommatus lunifer      0.368
+```
+
+This confirms the prior bird/cricket result was primarily a candidate-list
+problem: the app was scoring the beetle photo against BirdNET/audio labels, not
+against image-native beetle labels.
 
 ## iOS Spike Assets
 
-Use the full-list float32 validation output to generate local app resources for
+Use a validated image-native float32 output to generate local app resources for
 the iOS spike:
 
 ```sh
 uv run --python .venv-biocap/bin/python tools/biocap/export_ios_assets.py \
-  --embeddings tmp/biocap-validation/birdnet-6522-phone-like-36-biocap-openai-float32/biocap_text_embeddings.npz \
-  --species-list tmp/biocap-validation/birdnet-6522-species.jsonl \
-  --model tmp/biocap-validation/coreml-smoke-run-static-manual/BioCAPVisionEncoder.mlpackage \
-  --image-manifest tmp/biocap-validation/birdnet-6522-phone-like-birds.jsonl \
-  --rankings tmp/biocap-validation/birdnet-6522-phone-like-36-biocap-openai-float32/rankings.csv \
-  --fixture-scientific-name 'Calypte anna'
+  --embeddings tmp/biocap-validation/image-coleoptera-plus-birdnet-biocap-openai-float32/biocap_text_embeddings.npz \
+  --species-list tmp/biocap-validation/image-coleoptera-plus-birdnet-species.jsonl \
+  --model tmp/biocap-validation/coreml-smoke-run-static-manual/BioCAPVisionEncoder.mlpackage
 ```
+
+Pass `--image-manifest`, `--rankings`, and `--fixture-scientific-name` only when
+those files were produced from the same image-native candidate list.
 
 That writes generated resources under
 `Fieldnotes/Fieldnotes/Resources/BioCAP/`:

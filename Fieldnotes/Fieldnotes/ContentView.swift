@@ -8,6 +8,11 @@ struct ContentView: View {
                     Label("Listen", systemImage: "waveform")
                 }
 
+            PhotoClassifierView()
+                .tabItem {
+                    Label("Photo", systemImage: "camera.viewfinder")
+                }
+
             DetectionsView()
                 .tabItem {
                     Label("Atlas", systemImage: "book.closed")

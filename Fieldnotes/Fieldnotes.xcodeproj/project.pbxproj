@@ -563,6 +563,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Fieldnotes uses the camera to classify wildlife photos locally.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Fieldnotes can use location locally to filter species by range and season.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Fieldnotes listens locally to classify nearby wildlife sounds.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -599,6 +600,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Fieldnotes uses the camera to classify wildlife photos locally.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Fieldnotes can use location locally to filter species by range and season.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Fieldnotes listens locally to classify nearby wildlife sounds.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

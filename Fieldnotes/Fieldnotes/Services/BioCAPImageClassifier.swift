@@ -3,21 +3,21 @@ import CoreML
 import Foundation
 import UIKit
 
-struct BioCAPPhotoPrediction: Equatable, Sendable {
+nonisolated struct BioCAPPhotoPrediction: Equatable, Sendable {
     var scientificName: String
     var commonName: String
     var taxon: String
     var score: Float
 }
 
-struct BioCAPSpeciesMetadata: Decodable, Equatable {
+nonisolated struct BioCAPSpeciesMetadata: Decodable, Equatable {
     var index: Int
     var scientificName: String
     var commonName: String
     var taxon: String
 }
 
-struct BioCAPConfig: Decodable, Equatable {
+nonisolated struct BioCAPConfig: Decodable, Equatable {
     var embeddingDim: Int
     var speciesCount: Int
     var embeddingDtype: String
@@ -27,7 +27,7 @@ struct BioCAPConfig: Decodable, Equatable {
     var promptTemplateCount: Int
 }
 
-final class BioCAPImageClassifier {
+nonisolated final class BioCAPImageClassifier {
     private let model: MLModel
     private let species: [BioCAPSpeciesMetadata]
     private let config: BioCAPConfig
@@ -193,7 +193,7 @@ final class BioCAPImageClassifier {
     }
 }
 
-private extension MLMultiArray {
+private nonisolated extension MLMultiArray {
     func floatArray() throws -> [Float] {
         switch dataType {
         case .float16, .float32, .double:
@@ -204,7 +204,7 @@ private extension MLMultiArray {
     }
 }
 
-enum BioCAPImageClassifierError: LocalizedError {
+nonisolated enum BioCAPImageClassifierError: LocalizedError {
     case assetMismatch(String)
     case invalidEmbedding(String)
     case invalidImage
