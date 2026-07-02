@@ -550,17 +550,80 @@ the scientific name as a placeholder. The enrichment step preserves row order, s
 it can be used with the existing embedding matrix:
 
 ```sh
+uv run --python .venv-biocap/bin/python tools/biocap/fetch_inaturalist_common_names.py \
+  --species-list tmp/biocap-validation/cloud-l4-animal-only/image-field-animals-no-plants-fungi-species.jsonl \
+  --output tmp/biocap-validation/cloud-l4-animal-only/inaturalist-common-names.jsonl \
+  --cache-dir tmp/biocap-validation/inaturalist-taxa-cache
+
+uv run --python .venv-biocap/bin/python tools/biocap/fetch_gbif_common_names.py \
+  --species-list tmp/biocap-validation/cloud-l4-animal-only/image-field-animals-no-plants-fungi-species.jsonl \
+  --output tmp/biocap-validation/cloud-l4-animal-only/gbif-common-names-no-coleoptera.jsonl \
+  --cache-dir tmp/biocap-validation/gbif-species-cache \
+  --taxon-key Aves=212 \
+  --taxon-key Mammalia=359 \
+  --taxon-key Amphibia=131 \
+  --taxon-key Squamata=11592253 \
+  --taxon-key Testudines=11418114 \
+  --taxon-key Crocodylia=11493978 \
+  --taxon-key Sphenodontia=11569602 \
+  --taxon-key Odonata=789 \
+  --taxon-key Orthoptera=1458
+
 uv run --python .venv-biocap/bin/python tools/biocap/enrich_common_names.py \
   --species-list tmp/biocap-validation/cloud-l4-animal-only/image-field-animals-no-plants-fungi-species.jsonl \
-  --output tmp/biocap-validation/cloud-l4-animal-only/image-field-animals-no-plants-fungi-species.enriched.jsonl
+  --vernacular-jsonl tmp/biocap-validation/cloud-l4-animal-only/inaturalist-common-names.jsonl \
+  --vernacular-jsonl tmp/biocap-validation/cloud-l4-animal-only/gbif-common-names-no-coleoptera.jsonl \
+  --output tmp/biocap-validation/cloud-l4-animal-only/image-field-animals-no-plants-fungi-species.inat-gbif-enriched.jsonl
 ```
 
 The current offline enrichment sources are:
 
+- `tmp/biocap-validation/cloud-l4-animal-only/inaturalist-common-names.jsonl`
+  for iNaturalist preferred English names.
+- `tmp/biocap-validation/cloud-l4-animal-only/gbif-common-names-no-coleoptera.jsonl`
+  for scoped GBIF English vernacular names.
 - `Fieldnotes/Fieldnotes/Resources/Labels/labels_en.json` for BirdNET overlap.
-- `tools/biocap/common_name_overrides.json` for manual fixes.
-- optional `--vernacular-jsonl` / `--vernacular-csv` inputs for future
-  iNaturalist/GBIF-style exports.
+- optional extra `--vernacular-jsonl` / `--vernacular-csv` inputs for future
+  source exports.
+
+The iNaturalist pull on 2026-07-01 paged the current animal-only groups
+(`Aves`, `Mammalia`, `Amphibia`, `Reptilia`, `Coleoptera`, `Odonata`,
+`Orthoptera`) with `id_above` sliding windows and matched 29,323 exact
+scientific names from the 72,574-species candidate list. After combining
+iNaturalist and BirdNET overlap names, enrichment produced:
+
+```json
+{
+  "exact": 23240,
+  "fallback": 41878,
+  "kept": 6509,
+  "parent": 947
+}
+```
+
+A scoped GBIF supplement was then run for vertebrates plus `Odonata` and
+`Orthoptera`. Full `Coleoptera` was intentionally not crawled in this pass:
+GBIF had 373,306 accepted beetle species records under `Coleoptera`, and the
+species search payload includes large description fields. The scoped GBIF run
+matched 27,206 exact scientific names and added 1,973 net display names after
+merging with iNaturalist and BirdNET. The combined source-derived enrichment
+produced:
+
+```json
+{
+  "exact": 25127,
+  "fallback": 39905,
+  "kept": 6509,
+  "parent": 1033
+}
+```
+
+Combined source-derived common-name coverage is 32,649 / 72,574 species
+(`44.99%`). The remaining 39,925 rows fall back to scientific names.
+
+Many global insect species still do not have a stable English common name in
+these sources. Those rows intentionally fall back to the scientific name rather
+than inventing a label.
 
 If an exact common name is missing, the script falls back from an infraspecies to
 the parent binomial when available. For example:
@@ -574,7 +637,7 @@ After enrichment, export using the enriched JSONL:
 ```sh
 uv run --python .venv-biocap/bin/python tools/biocap/export_ios_assets.py \
   --embeddings tmp/biocap-validation/cloud-l4-animal-only/biocap_text_embeddings.npz \
-  --species-list tmp/biocap-validation/cloud-l4-animal-only/image-field-animals-no-plants-fungi-species.enriched.jsonl \
+  --species-list tmp/biocap-validation/cloud-l4-animal-only/image-field-animals-no-plants-fungi-species.inat-gbif-enriched.jsonl \
   --model tmp/biocap-validation/coreml-smoke-run-static-manual/BioCAPVisionEncoder.mlpackage
 ```
 
@@ -594,11 +657,11 @@ The beetle screenshot crop ranked as stag beetles with the full animal-only
 matrix:
 
 ```text
-1. Lucanus marazziorum      0.383
-2. Lucanus parryi           0.377
-3. Lucanus fortunei         0.376
-4. Lucanus swinhoei         0.373
-5. Cyclommatus lunifer      0.368
+1. Lucanus marazziorum                   0.383
+2. Lucanus parryi                        0.377
+3. Lucanus fortunei                      0.376
+4. Lucanus swinhoei                      0.373
+5. Cyclommatus lunifer                   0.368
 ```
 
 The iOS fixture test passed against the exported 72,574-species resources:

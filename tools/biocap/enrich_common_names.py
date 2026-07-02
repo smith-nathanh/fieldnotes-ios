@@ -36,12 +36,6 @@ def parse_args() -> argparse.Namespace:
         help="BirdNET scientific-name to common-name JSON.",
     )
     parser.add_argument(
-        "--manual-overrides",
-        type=Path,
-        default=Path("tools/biocap/common_name_overrides.json"),
-        help="Manual scientific-name to English common-name JSON.",
-    )
-    parser.add_argument(
         "--vernacular-jsonl",
         action="append",
         default=[],
@@ -181,13 +175,11 @@ def main() -> None:
     args = parse_args()
     rows = read_jsonl(args.species_list)
     birdnet_names = load_json(args.birdnet_common_names)
-    manual_names = load_json(args.manual_overrides)
     vernacular_names = load_vernacular_sources(args.vernacular_jsonl, args.vernacular_csv)
 
     exact_names: dict[str, str] = {}
     exact_names.update(vernacular_names)
     exact_names.update(birdnet_names)
-    exact_names.update(manual_names)
 
     parent_names = {
         name: common
