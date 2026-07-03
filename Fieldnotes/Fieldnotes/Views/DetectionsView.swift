@@ -3,16 +3,16 @@ import SwiftUI
 
 struct DetectionsView: View {
     @EnvironmentObject private var model: AppModel
-    @State private var sortMode: AtlasSortMode = .recent
+    @State private var sortMode: LogSortMode = .recent
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
-                    FieldPageHeader("Atlas")
+                    FieldPageHeader("Log")
 
                     Picker("Sort", selection: $sortMode) {
-                        ForEach(AtlasSortMode.allCases) { mode in
+                        ForEach(LogSortMode.allCases) { mode in
                             Text(mode.title).tag(mode)
                         }
                     }
@@ -70,7 +70,7 @@ struct DetectionsView: View {
     }
 }
 
-private enum AtlasSortMode: String, CaseIterable, Identifiable {
+private enum LogSortMode: String, CaseIterable, Identifiable {
     case recent
     case name
     case count

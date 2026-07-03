@@ -15,7 +15,7 @@ struct ContentView: View {
 
             DetectionsView()
                 .tabItem {
-                    Label("Atlas", systemImage: "book.closed")
+                    Label("Log", systemImage: "list.bullet.rectangle")
                 }
 
             StatsView()

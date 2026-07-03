@@ -34,7 +34,7 @@ struct PhotoClassifierView: View {
                         assetSummary: assetSummary,
                         addedScientificNames: addedScientificNames,
                         addingScientificName: addingScientificName,
-                        onAddToAtlas: addToAtlas
+                        onAddToLog: addToLog
                     )
                 }
                 .padding(.horizontal, 18)
@@ -143,13 +143,13 @@ struct PhotoClassifierView: View {
         }
     }
 
-    private func addToAtlas(_ prediction: BioCAPPhotoPrediction) {
+    private func addToLog(_ prediction: BioCAPPhotoPrediction) {
         guard addingScientificName == nil else {
             return
         }
         addingScientificName = prediction.scientificName
         Task {
-            await model.addPhotoPredictionToAtlas(prediction)
+            await model.addPhotoPredictionToLog(prediction)
             addedScientificNames.insert(prediction.scientificName)
             addingScientificName = nil
         }
@@ -272,7 +272,7 @@ private struct PhotoResultsPanel: View {
     var assetSummary: BioCAPAssetSummary?
     var addedScientificNames: Set<String>
     var addingScientificName: String?
-    var onAddToAtlas: (BioCAPPhotoPrediction) -> Void
+    var onAddToLog: (BioCAPPhotoPrediction) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -315,7 +315,7 @@ private struct PhotoResultsPanel: View {
                             isAdded: addedScientificNames.contains(prediction.scientificName),
                             isAdding: addingScientificName == prediction.scientificName,
                             isAddDisabled: addingScientificName != nil,
-                            onAddToAtlas: { onAddToAtlas(prediction) }
+                            onAddToLog: { onAddToLog(prediction) }
                         )
                     }
                 }
@@ -335,7 +335,7 @@ private struct PhotoPredictionRow: View {
     var isAdded: Bool
     var isAdding: Bool
     var isAddDisabled: Bool
-    var onAddToAtlas: () -> Void
+    var onAddToLog: () -> Void
 
     var body: some View {
         VStack(spacing: 10) {
@@ -371,7 +371,7 @@ private struct PhotoPredictionRow: View {
                 }
             }
 
-            Button(action: onAddToAtlas) {
+            Button(action: onAddToLog) {
                 Label(addButtonTitle, systemImage: addButtonSystemImage)
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity)
@@ -396,12 +396,12 @@ private struct PhotoPredictionRow: View {
 
     private var addButtonTitle: String {
         if isAdded {
-            return "Added to Atlas"
+            return "Added to Log"
         }
         if isAdding {
             return "Adding"
         }
-        return "Add to Atlas"
+        return "Add to Log"
     }
 
     private var addButtonSystemImage: String {

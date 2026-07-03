@@ -119,7 +119,7 @@ final class AppModel: ObservableObject {
             .sorted { $0.detectedAt > $1.detectedAt }
     }
 
-    func addPhotoPredictionToAtlas(_ prediction: BioCAPPhotoPrediction) async {
+    func addPhotoPredictionToLog(_ prediction: BioCAPPhotoPrediction) async {
         let detectedAt = Date()
         let week = Calendar(identifier: .iso8601).component(.weekOfYear, from: detectedAt)
         let detection = FieldDetection(
