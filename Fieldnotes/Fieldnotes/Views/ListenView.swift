@@ -52,9 +52,11 @@ struct ListenView: View {
                         FieldControls(
                             confidenceThreshold: model.confidenceThreshold,
                             privacyFilterEnabled: model.privacyFilterEnabled,
+                            locationTaggingEnabled: model.locationTaggingEnabled,
                             isLocked: model.isListening,
                             onThresholdChange: model.setConfidenceThreshold,
-                            onPrivacyChange: model.setPrivacyFilterEnabled
+                            onPrivacyChange: model.setPrivacyFilterEnabled,
+                            onLocationTaggingChange: model.setLocationTaggingEnabled
                         )
                     } trailing: {
                         if model.isListening {
@@ -155,9 +157,11 @@ private struct SessionSummary: View {
 private struct FieldControls: View {
     var confidenceThreshold: Float
     var privacyFilterEnabled: Bool
+    var locationTaggingEnabled: Bool
     var isLocked: Bool
     var onThresholdChange: (Float) -> Void
     var onPrivacyChange: (Bool) -> Void
+    var onLocationTaggingChange: (Bool) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -186,6 +190,14 @@ private struct FieldControls: View {
 
             Toggle(isOn: Binding(get: { privacyFilterEnabled }, set: onPrivacyChange)) {
                 Text("Privacy filtering")
+                    .font(.serif(18))
+                    .foregroundStyle(Color.ink)
+            }
+            .tint(Color.rust)
+            .disabled(isLocked)
+
+            Toggle(isOn: Binding(get: { locationTaggingEnabled }, set: onLocationTaggingChange)) {
+                Text("Location tagging")
                     .font(.serif(18))
                     .foregroundStyle(Color.ink)
             }

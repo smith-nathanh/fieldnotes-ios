@@ -50,7 +50,7 @@ struct DetectionRepository: Sendable {
 
     private func fetchDetections(in database: OpaquePointer) throws -> [FieldDetection] {
         let sql = """
-        SELECT id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week
+        SELECT id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week, location_accuracy, outing_id, model_version, is_first_of_species
         FROM detections
         ORDER BY detected_at DESC
         """
@@ -128,6 +128,30 @@ struct DetectionRepository: Sendable {
             in: "detections",
             database: database
         )
+        try addColumnIfNeeded(
+            named: "location_accuracy",
+            definition: "REAL",
+            in: "detections",
+            database: database
+        )
+        try addColumnIfNeeded(
+            named: "outing_id",
+            definition: "TEXT",
+            in: "detections",
+            database: database
+        )
+        try addColumnIfNeeded(
+            named: "model_version",
+            definition: "TEXT",
+            in: "detections",
+            database: database
+        )
+        try addColumnIfNeeded(
+            named: "is_first_of_species",
+            definition: "INTEGER NOT NULL DEFAULT 0",
+            in: "detections",
+            database: database
+        )
         try execute(
             "CREATE INDEX IF NOT EXISTS idx_detections_species_seen ON detections(scientific_name, detected_at)",
             in: database
@@ -136,13 +160,17 @@ struct DetectionRepository: Sendable {
             "CREATE INDEX IF NOT EXISTS idx_detections_seen ON detections(detected_at)",
             in: database
         )
+        try execute(
+            "CREATE INDEX IF NOT EXISTS idx_detections_outing ON detections(outing_id)",
+            in: database
+        )
     }
 
     private func insert(_ detections: [FieldDetection], in database: OpaquePointer) throws {
         let sql = """
         INSERT OR REPLACE INTO detections (
-            id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week, location_accuracy, outing_id, model_version, is_first_of_species
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
@@ -174,6 +202,22 @@ struct DetectionRepository: Sendable {
                 sqlite3_bind_null(statement, 10)
             }
             sqlite3_bind_int(statement, 11, Int32(detection.week))
+            if let locationAccuracy = detection.locationAccuracy {
+                sqlite3_bind_double(statement, 12, locationAccuracy)
+            } else {
+                sqlite3_bind_null(statement, 12)
+            }
+            if let outingId = detection.outingId {
+                sqlite3_bind_text(statement, 13, outingId.uuidString, -1, sqliteTransient)
+            } else {
+                sqlite3_bind_null(statement, 13)
+            }
+            if let modelVersion = detection.modelVersion {
+                sqlite3_bind_text(statement, 14, modelVersion, -1, sqliteTransient)
+            } else {
+                sqlite3_bind_null(statement, 14)
+            }
+            sqlite3_bind_int(statement, 15, detection.isFirstOfSpecies ? 1 : 0)
 
             guard sqlite3_step(statement) == SQLITE_DONE else {
                 throw sqliteError(database, message: "Could not insert detection")
@@ -209,6 +253,23 @@ struct DetectionRepository: Sendable {
         let latitude = sqlite3_column_type(statement, 8) == SQLITE_NULL ? nil : sqlite3_column_double(statement, 8)
         let longitude = sqlite3_column_type(statement, 9) == SQLITE_NULL ? nil : sqlite3_column_double(statement, 9)
 
+        let locationAccuracy = sqlite3_column_type(statement, 11) == SQLITE_NULL ? nil : sqlite3_column_double(statement, 11)
+
+        let outingId: UUID?
+        if sqlite3_column_type(statement, 12) == SQLITE_NULL {
+            outingId = nil
+        } else if let outingRaw = sqlite3_column_text(statement, 12).map({ String(cString: $0) }) {
+            outingId = UUID(uuidString: outingRaw)
+        } else {
+            outingId = nil
+        }
+
+        let modelVersion = sqlite3_column_type(statement, 13) == SQLITE_NULL
+            ? nil
+            : sqlite3_column_text(statement, 13).map { String(cString: $0) }
+
+        let isFirstOfSpecies = sqlite3_column_int(statement, 14) != 0
+
         return FieldDetection(
             id: id,
             scientificName: scientificName,
@@ -220,7 +281,11 @@ struct DetectionRepository: Sendable {
             clipURL: clipURL,
             latitude: latitude,
             longitude: longitude,
-            week: Int(sqlite3_column_int(statement, 10))
+            week: Int(sqlite3_column_int(statement, 10)),
+            locationAccuracy: locationAccuracy,
+            outingId: outingId,
+            modelVersion: modelVersion,
+            isFirstOfSpecies: isFirstOfSpecies
         )
     }
 

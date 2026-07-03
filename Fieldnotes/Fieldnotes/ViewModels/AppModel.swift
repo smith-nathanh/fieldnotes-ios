@@ -13,6 +13,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var diagnostics = DetectionDiagnostics.empty
     @Published private(set) var privacyFilterEnabled: Bool
     @Published private(set) var confidenceThreshold: Float
+    @Published private(set) var locationTaggingEnabled: Bool
     @Published private(set) var elapsedListening: TimeInterval = 0
     @Published private(set) var sessionSpeciesCount = 0
     @Published private(set) var sessionDetectionCount = 0
@@ -26,10 +27,15 @@ final class AppModel: ObservableObject {
     private var sessionStartedAt: Date?
     private var sessionScientificNames: Set<String> = []
     private var sessionTimer: Timer?
+    private var sessionOutingId: UUID?
     private let defaults: UserDefaults
     private let privacyFilterEnabledKey = "privacyFilterEnabled"
     private let confidenceThresholdKey = "confidenceThreshold"
+    private let locationTaggingEnabledKey = "locationTaggingEnabled"
     private let defaultSettings = DetectionSettings()
+
+    private static let audioModelVersion = "BirdNET_GLOBAL_6K_V2.4"
+    private static let photoModelVersion = "hf-hub:imageomics/biocap"
 
     init(
         repository: DetectionRepository? = nil,
@@ -44,6 +50,13 @@ final class AppModel: ObservableObject {
             self.confidenceThreshold = defaultSettings.confidenceThreshold
         } else {
             self.confidenceThreshold = Self.clampedConfidenceThreshold(defaults.float(forKey: confidenceThresholdKey))
+        }
+        // Location tagging defaults on, preserving prior behavior; users can
+        // opt out to stop attaching coarse GPS to detections.
+        if defaults.object(forKey: locationTaggingEnabledKey) == nil {
+            self.locationTaggingEnabled = true
+        } else {
+            self.locationTaggingEnabled = defaults.bool(forKey: locationTaggingEnabledKey)
         }
     }
 
@@ -122,6 +135,14 @@ final class AppModel: ObservableObject {
         defaults.set(clampedThreshold, forKey: confidenceThresholdKey)
     }
 
+    func setLocationTaggingEnabled(_ enabled: Bool) {
+        guard !isListening else {
+            return
+        }
+        locationTaggingEnabled = enabled
+        defaults.set(enabled, forKey: locationTaggingEnabledKey)
+    }
+
     func detections(for summary: SpeciesSummary) -> [FieldDetection] {
         detections
             .filter { $0.scientificName == summary.scientificName }
@@ -144,7 +165,7 @@ final class AppModel: ObservableObject {
     }
 
     private func record(_ detection: FieldDetection) async {
-        let detection = detectionWithCurrentLocation(detection)
+        let detection = enrichedDetection(detection)
         let decision = store.decision(for: detection)
         let replacedClipURL: URL?
         if case .insertReplacingClip(let existingID) = decision {
@@ -185,6 +206,7 @@ final class AppModel: ObservableObject {
 
     private func startSessionTracking() {
         sessionStartedAt = Date()
+        sessionOutingId = UUID()
         elapsedListening = 0
         sessionDetectionCount = 0
         sessionSpeciesCount = 0
@@ -211,6 +233,7 @@ final class AppModel: ObservableObject {
         // Keep the elapsed time and tallies so the last session's summary
         // stays on screen until the next session starts.
         sessionStartedAt = nil
+        sessionOutingId = nil
     }
 
     private func noteSessionDetection(_ detection: FieldDetection) {
@@ -235,16 +258,44 @@ final class AppModel: ObservableObject {
         )
     }
 
+    /// Stamps the metadata the app should capture on every detection (§9.1):
+    /// coarse location + accuracy, model version, outing grouping, and the
+    /// first-of-species flag. Location is only attached when tagging is enabled.
+    private func enrichedDetection(_ detection: FieldDetection) -> FieldDetection {
+        var detection = detectionWithCurrentLocation(detection)
+
+        if detection.modelVersion == nil {
+            detection.modelVersion = detection.source == .audio
+                ? Self.audioModelVersion
+                : Self.photoModelVersion
+        }
+
+        if detection.source == .audio, let sessionOutingId {
+            detection.outingId = sessionOutingId
+        }
+
+        // Computed before the store records it, so it reflects prior history.
+        detection.isFirstOfSpecies = !store.detections.contains {
+            $0.scientificName == detection.scientificName
+        }
+
+        return detection
+    }
+
     private func detectionWithCurrentLocation(_ detection: FieldDetection) -> FieldDetection {
         var detection = detection
         detection.week = Calendar(identifier: .iso8601).component(.weekOfYear, from: detection.detectedAt)
 
-        guard let location = locationService.currentLocation else {
+        guard locationTaggingEnabled, let location = locationService.currentLocation else {
+            detection.latitude = nil
+            detection.longitude = nil
+            detection.locationAccuracy = nil
             return detection
         }
 
         detection.latitude = location.coordinate.latitude
         detection.longitude = location.coordinate.longitude
+        detection.locationAccuracy = location.horizontalAccuracy
         return detection
     }
 

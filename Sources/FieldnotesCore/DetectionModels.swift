@@ -85,6 +85,14 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
     public var latitude: Double?
     public var longitude: Double?
     public var week: Int
+    /// Horizontal accuracy (metres) of the attached location fix, if any.
+    public var locationAccuracy: Double?
+    /// Groups detections captured during the same listening session (see §9.3).
+    public var outingId: UUID?
+    /// Build identifier of the model that produced this detection (§9.10 re-run).
+    public var modelVersion: String?
+    /// True when this was the first-ever recording of the species (§9.5 life list).
+    public var isFirstOfSpecies: Bool
 
     public init(
         id: UUID = UUID(),
@@ -97,7 +105,11 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         clipURL: URL? = nil,
         latitude: Double? = nil,
         longitude: Double? = nil,
-        week: Int
+        week: Int,
+        locationAccuracy: Double? = nil,
+        outingId: UUID? = nil,
+        modelVersion: String? = nil,
+        isFirstOfSpecies: Bool = false
     ) {
         self.id = id
         self.scientificName = scientificName
@@ -110,6 +122,10 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         self.latitude = latitude
         self.longitude = longitude
         self.week = week
+        self.locationAccuracy = locationAccuracy
+        self.outingId = outingId
+        self.modelVersion = modelVersion
+        self.isFirstOfSpecies = isFirstOfSpecies
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -124,6 +140,10 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         case latitude
         case longitude
         case week
+        case locationAccuracy
+        case outingId
+        case modelVersion
+        case isFirstOfSpecies
     }
 
     public init(from decoder: Decoder) throws {
@@ -139,6 +159,10 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         latitude = try container.decodeIfPresent(Double.self, forKey: .latitude)
         longitude = try container.decodeIfPresent(Double.self, forKey: .longitude)
         week = try container.decode(Int.self, forKey: .week)
+        locationAccuracy = try container.decodeIfPresent(Double.self, forKey: .locationAccuracy)
+        outingId = try container.decodeIfPresent(UUID.self, forKey: .outingId)
+        modelVersion = try container.decodeIfPresent(String.self, forKey: .modelVersion)
+        isFirstOfSpecies = try container.decodeIfPresent(Bool.self, forKey: .isFirstOfSpecies) ?? false
     }
 }
 
