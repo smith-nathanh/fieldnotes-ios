@@ -13,6 +13,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var diagnostics = DetectionDiagnostics.empty
     @Published private(set) var privacyFilterEnabled: Bool
     @Published private(set) var confidenceThreshold: Float
+    @Published private(set) var elapsedListening: TimeInterval = 0
+    @Published private(set) var sessionSpeciesCount = 0
+    @Published private(set) var sessionDetectionCount = 0
 
     private var store = DetectionStore()
     private let repository: DetectionRepository
@@ -20,6 +23,9 @@ final class AppModel: ObservableObject {
     private let clipWriter = AudioClipWriter()
     private let locationService = LocationService()
     private var listeningTask: Task<Void, Never>?
+    private var sessionStartedAt: Date?
+    private var sessionScientificNames: Set<String> = []
+    private var sessionTimer: Timer?
     private let defaults: UserDefaults
     private let privacyFilterEnabledKey = "privacyFilterEnabled"
     private let confidenceThresholdKey = "confidenceThreshold"
@@ -62,6 +68,7 @@ final class AppModel: ObservableObject {
         isListening = true
         status = "Listening"
         locationService.start()
+        startSessionTracking()
 
         let detector = injectedDetector ?? LiveDetectionEngine(settings: detectionSettings())
         listeningTask = Task { [detector] in
@@ -83,6 +90,7 @@ final class AppModel: ObservableObject {
                 await MainActor.run {
                     self.status = error.localizedDescription
                     self.isListening = false
+                    self.stopSessionTracking()
                 }
             }
         }
@@ -94,6 +102,7 @@ final class AppModel: ObservableObject {
         isListening = false
         status = "Paused"
         locationService.stop()
+        stopSessionTracking()
     }
 
     func setPrivacyFilterEnabled(_ enabled: Bool) {
@@ -155,6 +164,7 @@ final class AppModel: ObservableObject {
 
         detections = store.detections.sorted { $0.detectedAt > $1.detectedAt }
         refreshDerivedState()
+        noteSessionDetection(detection)
         status = "\(detection.commonName) \(scoreText(for: detection))"
 
         do {
@@ -166,7 +176,50 @@ final class AppModel: ObservableObject {
 
     private func refreshDerivedState() {
         summaries = store.summaries()
-        recentHits = detections.prefix(8).map { $0 }
+        // Recent Hits on the Listen screen are audio-only; photo captures come
+        // from the Photo tab and belong in the Log/Stats, not the listen feed.
+        recentHits = Array(detections.filter { $0.source == .audio }.prefix(8))
+    }
+
+    // MARK: - Listen session tracking
+
+    private func startSessionTracking() {
+        sessionStartedAt = Date()
+        elapsedListening = 0
+        sessionDetectionCount = 0
+        sessionSpeciesCount = 0
+        sessionScientificNames.removeAll()
+        sessionTimer?.invalidate()
+        sessionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.tickSession() }
+        }
+    }
+
+    private func tickSession() {
+        guard let sessionStartedAt else {
+            return
+        }
+        elapsedListening = Date().timeIntervalSince(sessionStartedAt)
+    }
+
+    private func stopSessionTracking() {
+        sessionTimer?.invalidate()
+        sessionTimer = nil
+        if let sessionStartedAt {
+            elapsedListening = Date().timeIntervalSince(sessionStartedAt)
+        }
+        // Keep the elapsed time and tallies so the last session's summary
+        // stays on screen until the next session starts.
+        sessionStartedAt = nil
+    }
+
+    private func noteSessionDetection(_ detection: FieldDetection) {
+        guard sessionStartedAt != nil, detection.source == .audio else {
+            return
+        }
+        sessionDetectionCount += 1
+        sessionScientificNames.insert(detection.scientificName)
+        sessionSpeciesCount = sessionScientificNames.count
     }
 
     private func detectionSettings() -> DetectionSettings {

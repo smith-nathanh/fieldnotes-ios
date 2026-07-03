@@ -19,6 +19,15 @@ struct ListenView: View {
                         action: model.toggleListening
                     )
 
+                    if model.isListening || model.elapsedListening > 0 {
+                        SessionSummary(
+                            elapsed: model.elapsedListening,
+                            speciesCount: model.sessionSpeciesCount,
+                            detectionCount: model.sessionDetectionCount,
+                            isLive: model.isListening
+                        )
+                    }
+
                     AlmanacSection("Live Candidate") {
                         LiveCandidatePanel(
                             diagnostics: model.diagnostics,
@@ -106,6 +115,40 @@ private struct ListenControl: View {
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+private struct SessionSummary: View {
+    var elapsed: TimeInterval
+    var speciesCount: Int
+    var detectionCount: Int
+    var isLive: Bool
+
+    var body: some View {
+        AlmanacSection(isLive ? "This Session" : "Last Session") {
+            HStack(alignment: .top, spacing: 16) {
+                MetricBlock(title: "Duration", value: durationText, valueColor: isLive ? .rust : .ink)
+                MetricBlock(title: "Species", value: "\(speciesCount)")
+                MetricBlock(title: "Detections", value: "\(detectionCount)")
+            }
+        } trailing: {
+            if isLive {
+                Circle()
+                    .fill(Color.rust)
+                    .frame(width: 8, height: 8)
+            }
+        }
+    }
+
+    private var durationText: String {
+        let total = max(0, Int(elapsed))
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let seconds = total % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 
