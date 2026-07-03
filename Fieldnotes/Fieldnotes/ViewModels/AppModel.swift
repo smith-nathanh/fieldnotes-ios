@@ -167,25 +167,41 @@ final class AppModel: ObservableObject {
     private func record(_ detection: FieldDetection) async {
         let detection = enrichedDetection(detection)
         let decision = store.decision(for: detection)
-        let replacedClipURL: URL?
-        if case .insertReplacingClip(let existingID) = decision {
-            replacedClipURL = store.detections.first { $0.id == existingID }?.clipURL
-        } else {
-            replacedClipURL = nil
+
+        // Determine which clip to discard, and whether the log actually changed,
+        // before mutating the store.
+        let clipToDelete: URL?
+        let didLog: Bool
+        switch decision {
+        case .insert:
+            clipToDelete = nil
+            didLog = true
+        case .replace(let existingID):
+            // Keep the new (stronger) clip; drop the one being replaced.
+            clipToDelete = store.detections.first { $0.id == existingID }?.clipURL
+            didLog = true
+        case .skip:
+            // Discard this call entirely, including its freshly written clip.
+            clipToDelete = detection.clipURL
+            didLog = false
         }
 
         _ = store.record(detection)
-
-        if case .insertWithoutClip = decision {
-            clipWriter.deleteClip(at: detection.clipURL)
+        if let clipToDelete {
+            clipWriter.deleteClip(at: clipToDelete)
         }
-        if case .insertReplacingClip = decision {
-            clipWriter.deleteClip(at: replacedClipURL)
+
+        // A skipped call within the cooldown window changes nothing — leave the
+        // log, session tally, and status untouched.
+        guard didLog else {
+            return
         }
 
         detections = store.detections.sorted { $0.detectedAt > $1.detectedAt }
         refreshDerivedState()
-        noteSessionDetection(detection)
+        if case .insert = decision {
+            noteSessionDetection(detection)
+        }
         status = "\(detection.commonName) \(scoreText(for: detection))"
 
         do {

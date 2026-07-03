@@ -1,9 +1,12 @@
 import Foundation
 
 public enum DetectionStoreDecision: Equatable, Sendable {
-    case insertWithClip
-    case insertWithoutClip(existingID: UUID)
-    case insertReplacingClip(existingID: UUID)
+    /// No recent detection of this species — log a new entry.
+    case insert
+    /// A recent (in-cooldown) entry exists and this call is stronger — replace it in place.
+    case replace(existingID: UUID)
+    /// A recent (in-cooldown) entry exists and is at least as strong — discard this call.
+    case skip(existingID: UUID)
 }
 
 public struct DetectionStore: Sendable {
@@ -13,20 +16,26 @@ public struct DetectionStore: Sendable {
         self.detections = detections
     }
 
+    /// Records a detection with cooldown-gated deduplication: repeated calls of
+    /// the same species within its taxon's cooldown window collapse into a single
+    /// entry, keeping the strongest. This prevents a frequently-calling animal
+    /// from flooding the log (e.g. a wren logged seven times a minute).
     public mutating func record(_ detection: FieldDetection) -> DetectionStoreDecision {
         let decision = decision(for: detection)
-        var detection = detection
         switch decision {
-        case .insertWithClip:
+        case .insert:
             detections.append(detection)
-        case .insertWithoutClip:
-            detection.clipURL = nil
-            detections.append(detection)
-        case .insertReplacingClip(let existingID):
+        case .replace(let existingID):
             if let index = detections.firstIndex(where: { $0.id == existingID }) {
-                detections[index].clipURL = nil
+                var replacement = detection
+                // Update the entry in place with the stronger call's data while
+                // preserving the original entry's identity and first-of-species flag.
+                replacement.id = detections[index].id
+                replacement.isFirstOfSpecies = detections[index].isFirstOfSpecies
+                detections[index] = replacement
             }
-            detections.append(detection)
+        case .skip:
+            break
         }
         return decision
     }
@@ -41,12 +50,12 @@ public struct DetectionStore: Sendable {
         }
 
         guard let strongest = candidates.max(by: { $0.confidence < $1.confidence }) else {
-            return .insertWithClip
+            return .insert
         }
         if detection.confidence > strongest.confidence {
-            return .insertReplacingClip(existingID: strongest.id)
+            return .replace(existingID: strongest.id)
         }
-        return .insertWithoutClip(existingID: strongest.id)
+        return .skip(existingID: strongest.id)
     }
 
     public func summaries() -> [SpeciesSummary] {

@@ -47,7 +47,7 @@ final class FieldnotesCoreTests: XCTestCase {
         XCTAssertTrue(HumanPrivacyFilter.isHumanWindow(predictions, privacyThresholdPercent: 0))
     }
 
-    func testCooldownCountsEveryDetectionAndKeepsStrongestClip() {
+    func testCooldownDeduplicatesRepeatDetectionsKeepingStrongest() {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         let originalID = UUID()
         let originalClip = URL(fileURLWithPath: "/tmp/original.caf")
@@ -82,22 +82,45 @@ final class FieldnotesCoreTests: XCTestCase {
             week: 8
         )
 
-        XCTAssertEqual(store.record(weaker), .insertWithoutClip(existingID: originalID))
-        XCTAssertEqual(store.detections.count, 2)
+        // A weaker repeat within the cooldown window is skipped — no new entry,
+        // original clip and confidence preserved.
+        XCTAssertEqual(store.record(weaker), .skip(existingID: originalID))
+        XCTAssertEqual(store.detections.count, 1)
         XCTAssertEqual(store.detections[0].clipURL, originalClip)
-        XCTAssertNil(store.detections[1].clipURL)
+        XCTAssertEqual(store.detections[0].confidence, 0.80, accuracy: 0.0001)
 
-        let decision = store.record(stronger)
-        guard case .insertReplacingClip(let replacedID) = decision else {
-            XCTFail("Expected stronger detection to replace representative clip")
-            return
-        }
+        // A stronger repeat within the window replaces the entry in place —
+        // still one row, now with the stronger clip and confidence, same id.
+        XCTAssertEqual(store.record(stronger), .replace(existingID: originalID))
+        XCTAssertEqual(store.detections.count, 1)
+        XCTAssertEqual(store.detections[0].id, originalID)
+        XCTAssertEqual(store.detections[0].clipURL, strongerClip)
+        XCTAssertEqual(store.detections[0].confidence, 0.92, accuracy: 0.0001)
+    }
 
-        XCTAssertEqual(replacedID, originalID)
-        XCTAssertEqual(store.detections.count, 3)
-        XCTAssertNil(store.detections[0].clipURL)
-        XCTAssertNil(store.detections[1].clipURL)
-        XCTAssertEqual(store.detections[2].clipURL, strongerClip)
+    func testDetectionPastCooldownWindowInsertsNewEntry() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        var store = DetectionStore(detections: [
+            FieldDetection(
+                scientificName: "Pica pica",
+                commonName: "Eurasian Magpie",
+                confidence: 0.80,
+                detectedAt: start,
+                week: 8
+            )
+        ])
+
+        // Just past the 5-minute bird cooldown — logged as a distinct entry.
+        let later = FieldDetection(
+            scientificName: "Pica pica",
+            commonName: "Eurasian Magpie",
+            confidence: 0.70,
+            detectedAt: start.addingTimeInterval(5 * 60 + 1),
+            week: 8
+        )
+
+        XCTAssertEqual(store.record(later), .insert)
+        XCTAssertEqual(store.detections.count, 2)
     }
 
     func testReptileUsesLongerCooldownWindow() {
