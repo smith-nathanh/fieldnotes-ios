@@ -149,6 +149,16 @@ final class AppModel: ObservableObject {
             .sorted { $0.detectedAt > $1.detectedAt }
     }
 
+    var outings: [Outing] {
+        store.outings()
+    }
+
+    func detections(for outing: Outing) -> [FieldDetection] {
+        detections
+            .filter { $0.outingId == outing.id }
+            .sorted { $0.detectedAt > $1.detectedAt }
+    }
+
     func addPhotoPredictionToLog(_ prediction: BioCAPPhotoPrediction) async {
         let detectedAt = Date()
         let week = Calendar(identifier: .iso8601).component(.weekOfYear, from: detectedAt)

@@ -166,6 +166,33 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
+public struct Outing: Identifiable, Equatable, Sendable {
+    public var id: UUID
+    public var startedAt: Date
+    public var endedAt: Date
+    public var speciesCount: Int
+    public var detectionCount: Int
+
+    public init(
+        id: UUID,
+        startedAt: Date,
+        endedAt: Date,
+        speciesCount: Int,
+        detectionCount: Int
+    ) {
+        self.id = id
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+        self.speciesCount = speciesCount
+        self.detectionCount = detectionCount
+    }
+
+    /// Span from the first to the last detection in the outing.
+    public var duration: TimeInterval {
+        max(0, endedAt.timeIntervalSince(startedAt))
+    }
+}
+
 public struct SpeciesSummary: Identifiable, Equatable, Sendable {
     public var id: String { scientificName }
     public var scientificName: String

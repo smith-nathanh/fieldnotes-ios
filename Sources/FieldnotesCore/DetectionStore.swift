@@ -85,6 +85,28 @@ public struct DetectionStore: Sendable {
         }
     }
 
+    /// Groups detections captured during the same listening session into outings,
+    /// most recent first. Detections without an `outingId` (e.g. photo captures)
+    /// are excluded.
+    public func outings() -> [Outing] {
+        let grouped = Dictionary(grouping: detections.compactMap { detection in
+            detection.outingId.map { (outingId: $0, detection: detection) }
+        }, by: \.outingId)
+
+        return grouped.map { id, pairs in
+            let items = pairs.map(\.detection)
+            let times = items.map(\.detectedAt)
+            return Outing(
+                id: id,
+                startedAt: times.min() ?? .distantPast,
+                endedAt: times.max() ?? .distantPast,
+                speciesCount: Set(items.map(\.scientificName)).count,
+                detectionCount: items.count
+            )
+        }
+        .sorted { $0.startedAt > $1.startedAt }
+    }
+
     public static func cooldownSeconds(for taxon: Taxon) -> TimeInterval {
         switch taxon {
         case .bird, .mammal, .unknown:

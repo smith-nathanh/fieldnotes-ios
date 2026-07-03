@@ -123,6 +123,35 @@ final class FieldnotesCoreTests: XCTestCase {
         XCTAssertEqual(store.detections.count, 2)
     }
 
+    func testOutingsGroupSessionDetectionsExcludingUngrouped() {
+        let outingA = UUID()
+        let outingB = UUID()
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let store = DetectionStore(detections: [
+            FieldDetection(scientificName: "Pica pica", commonName: "Eurasian Magpie",
+                           confidence: 0.9, detectedAt: start, week: 8, outingId: outingA),
+            FieldDetection(scientificName: "Parus major", commonName: "Great Tit",
+                           confidence: 0.8, detectedAt: start.addingTimeInterval(300), week: 8, outingId: outingA),
+            FieldDetection(scientificName: "Turdus merula", commonName: "Common Blackbird",
+                           confidence: 0.7, detectedAt: start.addingTimeInterval(4000), week: 8, outingId: outingB),
+            // Photo capture with no outingId — must be excluded.
+            FieldDetection(scientificName: "Vulpes vulpes", commonName: "Red Fox", source: .photo,
+                           confidence: 0.4, detectedAt: start.addingTimeInterval(100), week: 8),
+        ])
+
+        let outings = store.outings()
+
+        XCTAssertEqual(outings.count, 2)
+        // Most recent outing first.
+        XCTAssertEqual(outings[0].id, outingB)
+        XCTAssertEqual(outings[1].id, outingA)
+
+        let a = outings[1]
+        XCTAssertEqual(a.speciesCount, 2)
+        XCTAssertEqual(a.detectionCount, 2)
+        XCTAssertEqual(a.duration, 300, accuracy: 0.5)
+    }
+
     func testReptileUsesLongerCooldownWindow() {
         XCTAssertEqual(DetectionStore.cooldownSeconds(for: .reptile), 10 * 60)
     }

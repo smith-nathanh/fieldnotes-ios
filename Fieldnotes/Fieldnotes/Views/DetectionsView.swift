@@ -3,6 +3,7 @@ import SwiftUI
 
 struct DetectionsView: View {
     @EnvironmentObject private var model: AppModel
+    @State private var logMode: LogMode = .species
     @State private var sortMode: LogSortMode = .recent
 
     var body: some View {
@@ -12,23 +13,15 @@ struct DetectionsView: View {
                     Masthead(title: "Log", eyebrow: "A Naturalist's Record")
 
                     AlmanacSegmentedControl(
-                        options: LogSortMode.allCases.map { ($0, $0.title) },
-                        selection: $sortMode
+                        options: LogMode.allCases.map { ($0, $0.title) },
+                        selection: $logMode
                     )
 
-                    if model.summaries.isEmpty {
-                        AlmanacEmpty("No species logged", message: "detections you save appear here")
-                    } else {
-                        LazyVStack(spacing: 0) {
-                            ForEach(Array(sortedSummaries.enumerated()), id: \.element.id) { index, summary in
-                                NavigationLink {
-                                    SpeciesDetailView(summary: summary)
-                                } label: {
-                                    SpeciesLogRow(index: index + 1, summary: summary)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
+                    switch logMode {
+                    case .species:
+                        speciesContent
+                    case .outings:
+                        outingsContent
                     }
                 }
                 .padding(.horizontal, AlmanacLayout.screenPadding)
@@ -37,6 +30,47 @@ struct DetectionsView: View {
             }
             .almanacBackground()
             .toolbar(.hidden, for: .navigationBar)
+        }
+    }
+
+    @ViewBuilder
+    private var speciesContent: some View {
+        AlmanacSegmentedControl(
+            options: LogSortMode.allCases.map { ($0, $0.title) },
+            selection: $sortMode
+        )
+
+        if model.summaries.isEmpty {
+            AlmanacEmpty("No species logged", message: "detections you save appear here")
+        } else {
+            LazyVStack(spacing: 0) {
+                ForEach(Array(sortedSummaries.enumerated()), id: \.element.id) { index, summary in
+                    NavigationLink {
+                        SpeciesDetailView(summary: summary)
+                    } label: {
+                        SpeciesLogRow(index: index + 1, summary: summary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var outingsContent: some View {
+        if model.outings.isEmpty {
+            AlmanacEmpty("No outings yet", message: "start a listening session to log one")
+        } else {
+            LazyVStack(spacing: 0) {
+                ForEach(model.outings) { outing in
+                    NavigationLink {
+                        OutingDetailView(outing: outing)
+                    } label: {
+                        OutingCard(outing: outing)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 
@@ -58,6 +92,22 @@ struct DetectionsView: View {
                 }
                 return $0.count > $1.count
             }
+        }
+    }
+}
+
+private enum LogMode: String, CaseIterable, Identifiable {
+    case species
+    case outings
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .species:
+            return "Species"
+        case .outings:
+            return "Outings"
         }
     }
 }
