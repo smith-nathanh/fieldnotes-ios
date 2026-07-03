@@ -7,10 +7,10 @@ struct ListenView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 18) {
-                    FieldPageHeader(
-                        "Listen",
-                        subtitle: model.isListening ? "Local classification is live" : nil
+                VStack(alignment: .leading, spacing: 28) {
+                    Masthead(
+                        title: "Listen",
+                        eyebrow: model.isListening ? "Listening — Live" : "Ready to Record"
                     )
 
                     ListenControl(
@@ -19,30 +19,46 @@ struct ListenView: View {
                         action: model.toggleListening
                     )
 
-                    LiveCandidatePanel(
-                        diagnostics: model.diagnostics,
-                        threshold: model.confidenceThreshold,
-                        isListening: model.isListening
-                    )
+                    AlmanacSection("Live Candidate") {
+                        LiveCandidatePanel(
+                            diagnostics: model.diagnostics,
+                            threshold: model.confidenceThreshold,
+                            isListening: model.isListening
+                        )
+                    }
 
-                    DiagnosticsPanel(diagnostics: model.diagnostics)
+                    AlmanacSection("Diagnostics") {
+                        DiagnosticsPanel(diagnostics: model.diagnostics)
+                    } trailing: {
+                        if model.diagnostics.privacySuppressed {
+                            TagChip(text: "private", textColor: .olive, fill: .paperCard, borderColor: .ink)
+                        }
+                    }
 
-                    RecentHitsList(detections: model.recentHits)
+                    AlmanacSection("Recent Hits") {
+                        RecentHitsList(detections: model.recentHits)
+                    }
 
-                    FieldControls(
-                        confidenceThreshold: model.confidenceThreshold,
-                        privacyFilterEnabled: model.privacyFilterEnabled,
-                        isLocked: model.isListening,
-                        onThresholdChange: model.setConfidenceThreshold,
-                        onPrivacyChange: model.setPrivacyFilterEnabled
-                    )
+                    AlmanacSection("Field Controls") {
+                        FieldControls(
+                            confidenceThreshold: model.confidenceThreshold,
+                            privacyFilterEnabled: model.privacyFilterEnabled,
+                            isLocked: model.isListening,
+                            onThresholdChange: model.setConfidenceThreshold,
+                            onPrivacyChange: model.setPrivacyFilterEnabled
+                        )
+                    } trailing: {
+                        if model.isListening {
+                            TagChip(text: "locked", textColor: .rust, fill: Color.rust.opacity(0.12), borderColor: nil)
+                        }
+                    }
                 }
-                .padding(.horizontal, 18)
-                .padding(.bottom, 32)
+                .padding(.horizontal, AlmanacLayout.screenPadding)
+                .padding(.top, 8)
+                .padding(.bottom, .tabBarClearance)
             }
-            .fieldPageBackground()
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(FieldStyle.paper, for: .navigationBar)
+            .almanacBackground()
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 }
@@ -52,35 +68,44 @@ private struct ListenControl: View {
     var status: String
     var action: () -> Void
 
+    @State private var pulse = false
+
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 16) {
             Button(action: action) {
                 ZStack {
                     Circle()
-                        .fill(isListening ? FieldStyle.leaf.opacity(0.14) : FieldStyle.paperRecessed)
-                        .frame(width: 166, height: 166)
+                        .fill(Color.paper)
+                        .frame(width: 156, height: 156)
                     Circle()
-                        .strokeBorder(FieldStyle.paperRaised, lineWidth: 10)
-                        .frame(width: 144, height: 144)
-                    Circle()
-                        .stroke(isListening ? FieldStyle.leaf : FieldStyle.moss, lineWidth: 1.5)
-                        .frame(width: 126, height: 126)
+                        .stroke(Color.ink, lineWidth: 2)
+                        .frame(width: 150, height: 150)
+                    if isListening {
+                        Circle()
+                            .stroke(Color.rust.opacity(0.30), lineWidth: 12)
+                            .frame(width: 150, height: 150)
+                            .scaleEffect(pulse ? 1.06 : 0.98)
+                            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
+                    }
                     Image(systemName: isListening ? "stop.fill" : "waveform")
-                        .font(.system(size: 48, weight: .semibold))
-                        .foregroundStyle(isListening ? FieldStyle.leaf : FieldStyle.moss)
+                        .font(.system(size: 46, weight: .semibold))
+                        .foregroundStyle(Color.rust)
                 }
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isListening ? "Stop listening" : "Start listening")
+            .onAppear { pulse = isListening }
+            .onChange(of: isListening) { _, listening in
+                pulse = listening
+            }
 
             Text(status)
-                .font(.system(.title3, design: .serif).weight(.semibold))
-                .foregroundStyle(FieldStyle.ink)
+                .font(.serif(22, .semibold))
+                .foregroundStyle(Color.ink)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
     }
 }
 
@@ -92,24 +117,16 @@ private struct FieldControls: View {
     var onPrivacyChange: (Bool) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                FieldSectionLabel("field controls", systemImage: "slider.horizontal.3")
-                Spacer()
-                if isLocked {
-                    FieldPill("locked", systemImage: "lock.fill", color: FieldStyle.clay)
-                }
-            }
-
+        VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Threshold")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(FieldStyle.ink)
+                        .font(.serif(18))
+                        .foregroundStyle(Color.ink)
                     Spacer()
                     Text("\(Int(confidenceThreshold * 100))%")
-                        .font(.subheadline.monospacedDigit().weight(.semibold))
-                        .foregroundStyle(FieldStyle.inkMuted)
+                        .font(.serif(19, .semibold))
+                        .foregroundStyle(Color.rust)
                 }
 
                 Slider(
@@ -120,54 +137,52 @@ private struct FieldControls: View {
                     in: 0.30...0.95,
                     step: 0.05
                 )
-                .tint(FieldStyle.moss)
+                .tint(Color.rust)
                 .disabled(isLocked)
             }
 
             Toggle(isOn: Binding(get: { privacyFilterEnabled }, set: onPrivacyChange)) {
-                Label("Privacy filtering", systemImage: "hand.raised")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(FieldStyle.ink)
+                Text("Privacy filtering")
+                    .font(.serif(18))
+                    .foregroundStyle(Color.ink)
             }
-            .tint(FieldStyle.moss)
+            .tint(Color.rust)
             .disabled(isLocked)
         }
-        .fieldPanel()
     }
 }
 
 private struct DiagnosticsPanel: View {
     var diagnostics: DetectionDiagnostics
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center) {
-                FieldSectionLabel("diagnostics", systemImage: "gauge.with.dots.needle.bottom.50percent")
-                Spacer()
-                if diagnostics.privacySuppressed {
-                    FieldPill("private", systemImage: "hand.raised.fill", color: FieldStyle.clay)
-                }
-            }
+    private let columns = [
+        GridItem(.flexible(), spacing: 16),
+        GridItem(.flexible(), spacing: 16),
+    ]
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                FieldMetric(title: "Windows", value: "\(diagnostics.windowsProcessed)")
-                FieldMetric(title: "Level", value: "\(Int(diagnostics.audioLevel * 100))%")
-                FieldMetric(title: "Latency", value: latencyText)
-                FieldMetric(title: "Range", value: rangeText)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            LazyVGrid(columns: columns, spacing: 18) {
+                MetricBlock(title: "Windows", value: "\(diagnostics.windowsProcessed)")
+                MetricBlock(title: "Level", value: "\(Int(diagnostics.audioLevel * 100))%")
+                MetricBlock(title: "Latency", value: latencyText)
+                MetricBlock(title: "Range", value: rangeText)
             }
 
             HStack(spacing: 8) {
                 Image(systemName: "mic")
-                    .foregroundStyle(FieldStyle.moss)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.rust)
                 Text(audioInputText)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(FieldStyle.inkMuted)
+                    .font(.mono(10, .regular))
+                    .tracking(.tracking(0.06, at: 10))
+                    .textCase(.uppercase)
+                    .foregroundStyle(Color.monoLabel)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 Spacer()
             }
         }
-        .fieldPanel()
     }
 
     private var latencyText: String {
@@ -201,36 +216,37 @@ private struct LiveCandidatePanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .center) {
-                FieldSectionLabel("live candidate", systemImage: "ear")
-                Spacer()
-                FieldPill(candidateState.title, systemImage: candidateState.systemImage, color: candidateState.color)
-            }
-
             HStack(alignment: .center, spacing: 16) {
                 ConfidenceRing(
                     confidence: displayedConfidence,
-                    color: candidateState.color,
                     isListening: isListening
                 )
 
                 VStack(alignment: .leading, spacing: 7) {
+                    TagChip(
+                        text: candidateState.title,
+                        textColor: candidateState.color,
+                        fill: .paperCard,
+                        borderColor: .ink
+                    )
+
                     Text(displayedName)
-                        .font(.system(.title2, design: .serif).weight(.semibold))
-                        .foregroundStyle(FieldStyle.ink)
+                        .font(.serif(22, .semibold))
+                        .foregroundStyle(Color.ink)
                         .lineLimit(2)
                         .minimumScaleFactor(0.72)
 
                     Text(candidateDetail)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(FieldStyle.inkMuted)
+                        .font(.serif(14))
+                        .foregroundStyle(Color.inkSoft)
                         .lineLimit(2)
-                        .minimumScaleFactor(0.78)
+                        .minimumScaleFactor(0.8)
 
                     if let rawCandidateDetail {
                         Text(rawCandidateDetail)
-                            .font(.caption2.monospaced())
-                            .foregroundStyle(FieldStyle.inkFaint)
+                            .font(.mono(10, .regular))
+                            .tracking(.tracking(0.04, at: 10))
+                            .foregroundStyle(Color.monoLabel)
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
                     }
@@ -241,7 +257,6 @@ private struct LiveCandidatePanel: View {
                 CandidateTrail(trail: trail)
             }
         }
-        .fieldPanel(inset: 18)
         .onChange(of: diagnostics) { _, newDiagnostics in
             appendTrace(from: newDiagnostics)
         }
@@ -346,27 +361,24 @@ private struct LiveCandidatePanel: View {
 
 private struct ConfidenceRing: View {
     var confidence: Float?
-    var color: Color
     var isListening: Bool
 
     var body: some View {
         ZStack {
             Circle()
-                .fill(FieldStyle.paperRecessed)
+                .fill(Color.paperCard)
             Circle()
-                .stroke(FieldStyle.rule, lineWidth: 8)
+                .stroke(Color.hairline, lineWidth: 8)
             Circle()
                 .trim(from: 0, to: CGFloat(confidence ?? 0))
-                .stroke(color, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                .stroke(Color.rust, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-            Circle()
-                .stroke(color.opacity(isListening ? 0.18 : 0.08), lineWidth: isListening ? 18 : 10)
-                .scaleEffect(isListening ? 1.04 : 1)
             Text(confidenceText)
-                .font(.callout.monospacedDigit().weight(.semibold))
-                .foregroundStyle(FieldStyle.ink)
+                .font(.serif(20, .semibold))
+                .foregroundStyle(Color.ink)
         }
         .frame(width: 88, height: 88)
+        .overlay(Circle().stroke(Color.ink, lineWidth: 1))
         .animation(.easeInOut(duration: 0.25), value: confidence)
     }
 
@@ -383,17 +395,16 @@ private struct CandidateTrail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text("recent guesses")
-                .font(.caption2.weight(.bold))
-                .textCase(.uppercase)
-                .tracking(1.0)
-                .foregroundStyle(FieldStyle.inkFaint)
+            Text("recent guesses".uppercased())
+                .font(.mono(9, .regular))
+                .tracking(.tracking(0.10, at: 9))
+                .foregroundStyle(Color.monoLabel)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(Array(trail.enumerated()), id: \.element.id) { index, trace in
                         CandidateChip(trace: trace)
-                            .opacity(max(0.38, 1 - Double(index) * 0.11))
+                            .opacity(max(0.4, 1 - Double(index) * 0.11))
                     }
                 }
                 .padding(.vertical, 1)
@@ -407,20 +418,18 @@ private struct CandidateChip: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            if let systemImage = trace.state.systemImage {
-                Image(systemName: systemImage)
-                    .font(.caption2.weight(.semibold))
-            }
             Text(trace.name)
+                .font(.serif(13))
+                .foregroundStyle(Color.ink)
                 .lineLimit(1)
             Text("\(Int(trace.confidence * 100))%")
-                .font(.caption.monospacedDigit().weight(.semibold))
+                .font(.mono(10, .medium))
+                .foregroundStyle(trace.state.color)
         }
-        .font(.caption.weight(.medium))
-        .foregroundStyle(trace.state.color)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(trace.state.color.opacity(0.10), in: Capsule())
+        .background(Capsule().fill(Color.paperCard))
+        .overlay(Capsule().stroke(Color.ink.opacity(0.6), lineWidth: 1))
     }
 }
 
@@ -465,39 +474,16 @@ private enum CandidateState: Equatable {
         }
     }
 
-    var systemImage: String? {
-        switch self {
-        case .strong, .likely, .loggable:
-            return "checkmark"
-        case .belowThreshold:
-            return "waveform.path.ecg"
-        case .outsideRange:
-            return "location.slash"
-        case .privateWindow:
-            return "hand.raised.fill"
-        case .considering:
-            return "ear"
-        case .listening:
-            return "waveform"
-        case .idle:
-            return nil
-        }
-    }
-
     var color: Color {
         switch self {
-        case .strong:
-            return FieldStyle.leaf
-        case .likely, .loggable:
-            return FieldStyle.moss
-        case .belowThreshold:
-            return FieldStyle.clay
-        case .outsideRange:
-            return FieldStyle.sky
-        case .privateWindow:
-            return FieldStyle.clay
-        case .considering, .listening, .idle:
-            return FieldStyle.inkFaint
+        case .strong, .likely, .loggable:
+            return .rust
+        case .belowThreshold, .considering, .listening:
+            return .inkSoft
+        case .outsideRange, .privateWindow:
+            return .olive
+        case .idle:
+            return .inkFaint
         }
     }
 }
@@ -506,20 +492,14 @@ private struct RecentHitsList: View {
     var detections: [FieldDetection]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            FieldSectionLabel("recent hits", systemImage: "clock")
-
-            if detections.isEmpty {
-                ContentUnavailableView("No detections yet", systemImage: "waveform.badge.magnifyingglass")
-                    .frame(maxWidth: .infinity, minHeight: 150)
-                    .foregroundStyle(FieldStyle.inkFaint)
-            } else {
+        if detections.isEmpty {
+            AlmanacEmpty("No detections yet", message: "accepted hits appear here")
+        } else {
+            VStack(spacing: 0) {
                 ForEach(detections) { detection in
                     DetectionRow(detection: detection)
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .fieldPanel()
     }
 }

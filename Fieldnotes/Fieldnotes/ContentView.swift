@@ -1,28 +1,38 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var selection: AlmanacTab = .listen
+
+    init() {
+        // Hide the native tab bar entirely — we draw our own Almanac bar.
+        let appearance = UITabBarAppearance()
+        appearance.configureWithTransparentBackground()
+        appearance.backgroundColor = .clear
+        appearance.shadowColor = .clear
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
+
     var body: some View {
-        TabView {
+        TabView(selection: $selection) {
             ListenView()
-                .tabItem {
-                    Label("Listen", systemImage: "waveform")
-                }
+                .tag(AlmanacTab.listen)
+                .toolbar(.hidden, for: .tabBar)
 
             PhotoClassifierView()
-                .tabItem {
-                    Label("Photo", systemImage: "camera.viewfinder")
-                }
+                .tag(AlmanacTab.photo)
+                .toolbar(.hidden, for: .tabBar)
 
             DetectionsView()
-                .tabItem {
-                    Label("Log", systemImage: "list.bullet.rectangle")
-                }
+                .tag(AlmanacTab.log)
+                .toolbar(.hidden, for: .tabBar)
 
             StatsView()
-                .tabItem {
-                    Label("Statistics", systemImage: "chart.bar.xaxis")
-                }
+                .tag(AlmanacTab.stats)
+                .toolbar(.hidden, for: .tabBar)
         }
-        .tint(FieldStyle.moss)
+        .overlay(alignment: .bottom) {
+            AlmanacTabBar(selection: $selection)
+        }
     }
 }

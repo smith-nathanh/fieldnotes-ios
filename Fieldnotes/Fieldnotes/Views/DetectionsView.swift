@@ -8,43 +8,35 @@ struct DetectionsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 18) {
-                    FieldPageHeader("Log")
+                VStack(alignment: .leading, spacing: 22) {
+                    Masthead(title: "Log", eyebrow: "A Naturalist's Record")
 
-                    Picker("Sort", selection: $sortMode) {
-                        ForEach(LogSortMode.allCases) { mode in
-                            Text(mode.title).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .tint(FieldStyle.moss)
-                    .padding(4)
-                    .background(FieldStyle.paperRecessed, in: Capsule())
+                    AlmanacSegmentedControl(
+                        options: LogSortMode.allCases.map { ($0, $0.title) },
+                        selection: $sortMode
+                    )
 
                     if model.summaries.isEmpty {
-                        ContentUnavailableView("No species logged", systemImage: "binoculars")
-                            .foregroundStyle(FieldStyle.inkFaint)
-                            .frame(maxWidth: .infinity, minHeight: 260)
-                            .fieldPanel()
+                        AlmanacEmpty("No species logged", message: "detections you save appear here")
                     } else {
-                        LazyVStack(spacing: 12) {
-                            ForEach(sortedSummaries) { summary in
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(sortedSummaries.enumerated()), id: \.element.id) { index, summary in
                                 NavigationLink {
                                     SpeciesDetailView(summary: summary)
                                 } label: {
-                                    SpeciesSummaryCard(summary: summary)
+                                    SpeciesLogRow(index: index + 1, summary: summary)
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
                     }
                 }
-                .padding(.horizontal, 18)
-                .padding(.bottom, 32)
+                .padding(.horizontal, AlmanacLayout.screenPadding)
+                .padding(.top, 8)
+                .padding(.bottom, .tabBarClearance)
             }
-            .fieldPageBackground()
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(FieldStyle.paper, for: .navigationBar)
+            .almanacBackground()
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 
@@ -89,57 +81,57 @@ private enum LogSortMode: String, CaseIterable, Identifiable {
     }
 }
 
-private struct SpeciesSummaryCard: View {
+private struct SpeciesLogRow: View {
+    var index: Int
     var summary: SpeciesSummary
 
     var body: some View {
         HStack(alignment: .top, spacing: 13) {
-            TaxonBadge(taxon: summary.taxon)
+            PlateBadge(index: String(format: "%02d", index))
 
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(summary.commonName)
-                        .font(.system(.title3, design: .serif).weight(.semibold))
-                        .foregroundStyle(FieldStyle.ink)
-                        .lineLimit(2)
-                    Text(summary.scientificName)
-                        .font(.subheadline.italic())
-                        .foregroundStyle(FieldStyle.inkMuted)
-                        .lineLimit(1)
-                }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(summary.commonName)
+                    .font(.serif(19, .semibold))
+                    .foregroundStyle(Color.ink)
+                    .lineLimit(2)
+                Text(summary.scientificName)
+                    .font(.serifItalic(13))
+                    .foregroundStyle(Color.inkFaint)
+                    .lineLimit(1)
 
-                HStack(spacing: 7) {
+                HStack(spacing: 6) {
                     if isNew {
-                        FieldPill("new", color: FieldStyle.sky)
+                        TagChip(text: "new", textColor: .ink, fill: .paperCard, borderColor: .ink)
                     }
                     if isRecent {
-                        FieldPill("recent", color: FieldStyle.leaf)
+                        TagChip(text: "recent", textColor: .rust, fill: Color.rust.opacity(0.12), borderColor: nil)
                     }
                     Text(summary.lastSeen, format: .relative(presentation: .named))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(FieldStyle.inkFaint)
+                        .font(.mono(10, .regular))
+                        .tracking(.tracking(0.04, at: 10))
+                        .foregroundStyle(Color.monoLabel)
+                        .lineLimit(1)
                 }
+                .padding(.top, 2)
             }
 
             Spacer(minLength: 8)
 
-            VStack(alignment: .trailing, spacing: 5) {
+            VStack(alignment: .trailing, spacing: 2) {
                 Text("\(summary.count)")
-                    .font(.title3.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(FieldStyle.ink)
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(scoreDisplay.value)
-                        .font(.caption.monospacedDigit().weight(.medium))
-                        .foregroundStyle(scoreDisplay.color)
-                    Text(scoreDisplay.label)
-                        .font(.caption2.weight(.medium))
-                        .textCase(.uppercase)
-                        .tracking(0.7)
-                        .foregroundStyle(FieldStyle.inkFaint)
-                }
+                    .font(.serif(22, .semibold))
+                    .foregroundStyle(Color.rust)
+                Text(scoreDisplay.value + " " + scoreDisplay.label)
+                    .font(.mono(9, .regular))
+                    .tracking(.tracking(0.06, at: 9))
+                    .textCase(.uppercase)
+                    .foregroundStyle(Color.monoLabel)
             }
         }
-        .fieldPanel()
+        .padding(.vertical, 14)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.hairline).frame(height: 1)
+        }
     }
 
     private var scoreDisplay: DetectionScoreDisplay {

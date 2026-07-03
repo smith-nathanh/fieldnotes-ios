@@ -17,8 +17,8 @@ struct PhotoClassifierView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 18) {
-                    FieldPageHeader("Photo", subtitle: subtitle)
+                VStack(alignment: .leading, spacing: 22) {
+                    Masthead(title: "Photo", eyebrow: "Field Specimen")
 
                     PhotoSelectionPanel(
                         selectedImage: selectedImage,
@@ -37,12 +37,12 @@ struct PhotoClassifierView: View {
                         onAddToLog: addToLog
                     )
                 }
-                .padding(.horizontal, 18)
-                .padding(.bottom, 32)
+                .padding(.horizontal, AlmanacLayout.screenPadding)
+                .padding(.top, 8)
+                .padding(.bottom, .tabBarClearance)
             }
-            .fieldPageBackground()
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(FieldStyle.paper, for: .navigationBar)
+            .almanacBackground()
+            .toolbar(.hidden, for: .navigationBar)
             .onChange(of: selectedItem) { _, item in
                 guard let item else { return }
                 classify(item)
@@ -55,19 +55,6 @@ struct PhotoClassifierView: View {
                     classify(image)
                 }
             }
-        }
-    }
-
-    private var subtitle: String? {
-        switch status {
-        case .classifying:
-            return "BioCAP image classification is running"
-        case .ready:
-            return "Top matches from the local image model"
-        case .failed:
-            return "Photo classification needs attention"
-        case .idle:
-            return nil
         }
     }
 
@@ -208,60 +195,38 @@ private struct PhotoSelectionPanel: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(FieldStyle.paperRecessed)
-                    .aspectRatio(4 / 3, contentMode: .fit)
-
-                if let selectedImage {
-                    Image(uiImage: selectedImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity)
-                        .aspectRatio(4 / 3, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                } else {
-                    Image(systemName: "photo")
-                        .font(.system(size: 46, weight: .medium))
-                        .foregroundStyle(FieldStyle.inkFaint)
-                }
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(FieldStyle.rule)
-            }
-
-            VStack(spacing: 10) {
-                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button(action: onTakePhoto) {
-                        Label(isClassifying ? "Classifying" : "Take Photo", systemImage: isClassifying ? "hourglass" : "camera")
-                            .font(.headline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .foregroundStyle(FieldStyle.paperRaised)
-                            .background(FieldStyle.moss, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            PhotoFrame(categoryTag: nil) {
+                Group {
+                    if let selectedImage {
+                        Image(uiImage: selectedImage)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        HatchPlaceholder()
                     }
-                    .buttonStyle(.plain)
-                    .disabled(isClassifying)
                 }
+                .frame(maxWidth: .infinity)
+                .aspectRatio(4 / 3, contentMode: .fit)
+            }
 
-                PhotosPicker(selection: $selectedItem, matching: .images) {
-                    Label(isClassifying ? "Classifying" : "Choose Photo", systemImage: isClassifying ? "hourglass" : "photo.on.rectangle")
-                        .font(.headline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .foregroundStyle(FieldStyle.moss)
-                        .background(FieldStyle.paper, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(FieldStyle.rule)
-                        }
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button(action: onTakePhoto) {
+                    Text(isClassifying ? "Classifying…" : "Take Photo")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AlmanacButton())
                 .disabled(isClassifying)
             }
+
+            PhotosPicker(selection: $selectedItem, matching: .images) {
+                Text(isClassifying ? "Classifying…" : "Choose Photo")
+                    .font(.serif(19, .semibold))
+                    .foregroundStyle(isClassifying ? Color.inkFaint : Color.ink)
+                    .frame(maxWidth: .infinity)
+                    .padding(16)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(isClassifying ? Color.lineWarm : Color.ink, lineWidth: 1))
+            }
+            .disabled(isClassifying)
         }
-        .fieldPanel()
     }
 }
 
@@ -276,38 +241,32 @@ private struct PhotoResultsPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                FieldSectionLabel("top matches", systemImage: "scope")
+            HStack(alignment: .firstTextBaseline) {
+                Eyebrow("Top Matches")
                 Spacer()
                 if let assetSummary {
-                    FieldPill(
-                        "\(assetSummary.speciesCount.formatted()) species",
-                        systemImage: "square.stack.3d.up",
-                        color: FieldStyle.leaf
-                    )
+                    MonoChip(text: "\(assetSummary.speciesCount.formatted()) species")
                 }
                 if let elapsedSeconds {
-                    FieldPill("\(elapsedSeconds.formatted(.number.precision(.fractionLength(2))))s", systemImage: "timer", color: FieldStyle.sky)
+                    MonoChip(text: "\(elapsedSeconds.formatted(.number.precision(.fractionLength(2))))s")
                 }
             }
 
             switch status {
             case .idle:
-                ContentUnavailableView("Choose a photo", systemImage: "camera.metering.center.weighted")
-                    .foregroundStyle(FieldStyle.inkFaint)
-                    .frame(maxWidth: .infinity, minHeight: 170)
+                AlmanacEmpty("Choose a photo", message: "top matches from the local image model")
             case .classifying:
                 HStack(spacing: 12) {
                     ProgressView()
-                        .tint(FieldStyle.moss)
+                        .tint(Color.rust)
                     Text("Running local BioCAP model")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(FieldStyle.inkMuted)
+                        .font(.serif(16))
+                        .foregroundStyle(Color.inkSoft)
                     Spacer()
                 }
-                .frame(maxWidth: .infinity, minHeight: 170)
+                .frame(maxWidth: .infinity, minHeight: 140)
             case .ready:
-                VStack(spacing: 10) {
+                VStack(spacing: 0) {
                     ForEach(Array(predictions.enumerated()), id: \.offset) { index, prediction in
                         PhotoPredictionRow(
                             rank: index + 1,
@@ -320,12 +279,24 @@ private struct PhotoResultsPanel: View {
                     }
                 }
             case .failed(let message):
-                ContentUnavailableView("Could not classify photo", systemImage: "exclamationmark.triangle", description: Text(message))
-                    .foregroundStyle(FieldStyle.inkFaint)
-                    .frame(maxWidth: .infinity, minHeight: 170)
+                AlmanacEmpty("Could not classify photo", message: message)
             }
         }
-        .fieldPanel()
+    }
+}
+
+private struct MonoChip: View {
+    var text: String
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(.mono(11, .medium))
+            .tracking(.tracking(0.06, at: 11))
+            .foregroundStyle(Color.inkSoft)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.paperCard))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.ink, lineWidth: 1))
     }
 }
 
@@ -338,65 +309,67 @@ private struct PhotoPredictionRow: View {
     var onAddToLog: () -> Void
 
     var body: some View {
-        VStack(spacing: 10) {
-            HStack(alignment: .center, spacing: 12) {
-                Text("\(rank)")
-                    .font(.headline.monospacedDigit().weight(.bold))
-                    .foregroundStyle(FieldStyle.paperRaised)
-                    .frame(width: 34, height: 34)
-                    .background(FieldStyle.moss, in: Circle())
+        HStack(alignment: .center, spacing: 12) {
+            RankChip(rank: rank)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(prediction.commonName)
-                        .font(.system(.headline, design: .serif).weight(.semibold))
-                        .foregroundStyle(FieldStyle.ink)
-                        .lineLimit(2)
-                    Text(prediction.scientificName)
-                        .font(.subheadline.italic())
-                        .foregroundStyle(FieldStyle.inkMuted)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 10)
-
-                VStack(alignment: .trailing, spacing: 3) {
-                    Text(prediction.score.formatted(.number.precision(.fractionLength(3))))
-                        .font(.headline.monospacedDigit().weight(.semibold))
-                        .foregroundStyle(FieldStyle.ink)
-                    Text("similarity")
-                        .font(.caption2.weight(.medium))
-                        .textCase(.uppercase)
-                        .tracking(0.7)
-                        .foregroundStyle(FieldStyle.inkFaint)
-                }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(prediction.commonName)
+                    .font(.serif(18, .semibold))
+                    .foregroundStyle(Color.ink)
+                    .lineLimit(2)
+                Text(prediction.scientificName)
+                    .font(.serifItalic(13))
+                    .foregroundStyle(Color.inkFaint)
+                    .lineLimit(1)
             }
 
-            Button(action: onAddToLog) {
-                Label(addButtonTitle, systemImage: addButtonSystemImage)
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 9)
-                    .foregroundStyle(isAdded || isAddDisabled ? FieldStyle.inkMuted : FieldStyle.moss)
-                    .background(FieldStyle.paperRecessed, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(FieldStyle.rule)
-                    }
+            Spacer(minLength: 8)
+
+            VStack(alignment: .trailing, spacing: 6) {
+                Text(prediction.score.formatted(.number.precision(.fractionLength(3))))
+                    .font(.serif(19, .semibold))
+                    .foregroundStyle(rank == 1 ? Color.ink : Color.inkSoft)
+                addButton
             }
-            .buttonStyle(.plain)
-            .disabled(isAdded || isAddDisabled)
         }
-        .padding(12)
-        .background(FieldStyle.paper, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(FieldStyle.rule)
+        .padding(.vertical, 12)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.hairline).frame(height: 1)
         }
     }
 
-    private var addButtonTitle: String {
+    private var addButton: some View {
+        Button(action: onAddToLog) {
+            HStack(spacing: 4) {
+                Image(systemName: addSystemImage)
+                    .font(.system(size: 9, weight: .bold))
+                Text(addTitle.uppercased())
+                    .font(.mono(10, .medium))
+                    .tracking(.tracking(0.06, at: 10))
+            }
+            .foregroundStyle(addForeground)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(addFill))
+        }
+        .buttonStyle(.plain)
+        .disabled(isAdded || isAddDisabled)
+    }
+
+    private var addForeground: Color {
+        if isAdded { return .inkSoft }
+        if isAddDisabled { return .inkFaint }
+        return .rust
+    }
+
+    private var addFill: Color {
+        if isAdded { return .paperCard }
+        return Color.rust.opacity(0.12)
+    }
+
+    private var addTitle: String {
         if isAdded {
-            return "Added to Log"
+            return "Added"
         }
         if isAdding {
             return "Adding"
@@ -404,14 +377,14 @@ private struct PhotoPredictionRow: View {
         return "Add to Log"
     }
 
-    private var addButtonSystemImage: String {
+    private var addSystemImage: String {
         if isAdded {
-            return "checkmark.circle.fill"
+            return "checkmark"
         }
         if isAdding {
             return "hourglass"
         }
-        return "plus.circle"
+        return "plus"
     }
 }
 

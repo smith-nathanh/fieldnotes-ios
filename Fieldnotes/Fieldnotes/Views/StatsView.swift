@@ -7,19 +7,16 @@ struct StatsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 18) {
-                    FieldPageHeader("Statistics")
+                VStack(alignment: .leading, spacing: 26) {
+                    Masthead(title: "Statistics", eyebrow: "Field Summary")
 
                     if model.detections.isEmpty {
-                        ContentUnavailableView("No stats yet", systemImage: "chart.bar.xaxis")
-                            .foregroundStyle(FieldStyle.inkFaint)
-                            .frame(maxWidth: .infinity, minHeight: 260)
-                            .fieldPanel()
+                        AlmanacEmpty("No stats yet", message: "log a few detections to see the ledger")
                     } else {
                         OverviewPanel(metrics: overviewMetrics)
 
                         RankedPanel(
-                            title: "top species",
+                            title: "Top Species",
                             subtitle: "most heard, all time",
                             summaries: topSpecies
                         )
@@ -31,12 +28,12 @@ struct StatsView: View {
                         RegionPanel(regions: fieldRegions, locatedCount: locatedDetections.count)
                     }
                 }
-                .padding(.horizontal, 18)
-                .padding(.bottom, 32)
+                .padding(.horizontal, AlmanacLayout.screenPadding)
+                .padding(.top, 8)
+                .padding(.bottom, .tabBarClearance)
             }
-            .fieldPageBackground()
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(FieldStyle.paper, for: .navigationBar)
+            .almanacBackground()
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 
@@ -51,14 +48,6 @@ struct StatsView: View {
 
     private var audioDetections: [FieldDetection] {
         model.detections.filter { $0.source == .audio }
-    }
-
-    private var todaySpeciesCount: Int {
-        Set(todayDetections.map(\.scientificName)).count
-    }
-
-    private var weekSpeciesCount: Int {
-        Set(weekDetections.map(\.scientificName)).count
     }
 
     private var clipCount: Int {
@@ -102,10 +91,10 @@ struct StatsView: View {
 
     private var confidenceBins: [DistributionBin] {
         [
-            confidenceBin(title: "90-100%", range: 0.90...1.00, color: FieldStyle.leaf),
-            confidenceBin(title: "75-89%", range: 0.75..<0.90, color: FieldStyle.moss),
-            confidenceBin(title: "60-74%", range: 0.60..<0.75, color: FieldStyle.clay),
-            confidenceBin(title: "< 60%", range: 0.00..<0.60, color: FieldStyle.inkFaint),
+            confidenceBin(title: "90-100%", range: 0.90...1.00),
+            confidenceBin(title: "75-89%", range: 0.75..<0.90),
+            confidenceBin(title: "60-74%", range: 0.60..<0.75),
+            confidenceBin(title: "< 60%", range: 0.00..<0.60),
         ]
     }
 
@@ -139,43 +128,80 @@ struct StatsView: View {
         }
     }
 
-    private func confidenceBin(title: String, range: ClosedRange<Float>, color: Color) -> DistributionBin {
+    private func confidenceBin(title: String, range: ClosedRange<Float>) -> DistributionBin {
         DistributionBin(
             title: title,
             count: audioDetections.filter { range.contains($0.confidence) }.count,
-            total: audioDetections.count,
-            color: color
+            total: audioDetections.count
         )
     }
 
-    private func confidenceBin(title: String, range: Range<Float>, color: Color) -> DistributionBin {
+    private func confidenceBin(title: String, range: Range<Float>) -> DistributionBin {
         DistributionBin(
             title: title,
             count: audioDetections.filter { range.contains($0.confidence) }.count,
-            total: audioDetections.count,
-            color: color
+            total: audioDetections.count
         )
     }
 }
 
+// MARK: - Section scaffold
+
+private struct StatSection<Content: View>: View {
+    var title: String
+    var subtitle: String?
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Eyebrow(title)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.mono(10, .regular))
+                        .tracking(.tracking(0.04, at: 10))
+                        .foregroundStyle(Color.monoLabel)
+                }
+            }
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct BarTrack: View {
+    var fraction: CGFloat
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.hairline)
+                Capsule()
+                    .fill(Color.rust)
+                    .frame(width: max(0, proxy.size.width * fraction))
+            }
+        }
+        .frame(height: 7)
+    }
+}
+
+// MARK: - Panels
+
 private struct OverviewPanel: View {
     var metrics: [StatMetric]
 
+    private let columns = [
+        GridItem(.flexible(), spacing: 16),
+        GridItem(.flexible(), spacing: 16),
+        GridItem(.flexible(), spacing: 16),
+    ]
+
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 12) {
+        LazyVGrid(columns: columns, spacing: 20) {
             ForEach(metrics) { metric in
-                FieldMetric(title: metric.title, value: metric.value)
+                MetricBlock(title: metric.title, value: metric.value)
             }
         }
-        .fieldPanel()
-    }
-
-    private var columns: [GridItem] {
-        [
-            GridItem(.flexible(), spacing: 12),
-            GridItem(.flexible(), spacing: 12),
-            GridItem(.flexible(), spacing: 12),
-        ]
     }
 }
 
@@ -185,28 +211,22 @@ private struct RankedPanel: View {
     var summaries: [SpeciesSummary]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                FieldSectionLabel(title)
-                Text(subtitle)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(FieldStyle.inkFaint)
-            }
-
-            ForEach(Array(summaries.enumerated()), id: \.element.id) { index, summary in
-                NavigationLink {
-                    SpeciesDetailView(summary: summary)
-                } label: {
-                    FieldRuleRow(
-                        label: String(format: "%02d", index + 1),
-                        detail: summary.commonName,
-                        value: "\(summary.count)"
-                    )
+        StatSection(title: title, subtitle: subtitle) {
+            VStack(spacing: 0) {
+                ForEach(Array(summaries.enumerated()), id: \.element.id) { index, summary in
+                    NavigationLink {
+                        SpeciesDetailView(summary: summary)
+                    } label: {
+                        LedgerRow(
+                            label: String(format: "%02d", index + 1),
+                            detail: summary.commonName,
+                            value: "\(summary.count)"
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
-        .fieldPanel()
     }
 }
 
@@ -214,19 +234,13 @@ private struct ConfidenceDistributionPanel: View {
     var bins: [DistributionBin]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                FieldSectionLabel("confidence")
-                Text("how strongly BirdNET scored saved audio detections")
-                    .font(.caption.monospaced())
-                    .foregroundStyle(FieldStyle.inkFaint)
-            }
-
-            ForEach(bins) { bin in
-                DistributionRow(bin: bin)
+        StatSection(title: "Confidence", subtitle: "how strongly saved audio scored") {
+            VStack(spacing: 14) {
+                ForEach(bins) { bin in
+                    DistributionRow(bin: bin)
+                }
             }
         }
-        .fieldPanel()
     }
 }
 
@@ -234,23 +248,29 @@ private struct TaxonMixPanel: View {
     var rows: [TaxonRow]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                FieldSectionLabel("taxa")
-                Text("which kinds of visitors are being logged")
-                    .font(.caption.monospaced())
-                    .foregroundStyle(FieldStyle.inkFaint)
-            }
-
-            ForEach(rows) { row in
-                FieldRuleRow(
-                    label: row.taxon.displayName,
-                    detail: "\(row.percent)%",
-                    value: "\(row.count)"
-                )
+        StatSection(title: "Taxa", subtitle: "which kinds of visitors are logged") {
+            VStack(spacing: 14) {
+                ForEach(rows) { row in
+                    VStack(spacing: 7) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(row.taxon.displayName)
+                                .font(.serif(18))
+                                .foregroundStyle(Color.ink)
+                            Spacer()
+                            Text("\(row.count)")
+                                .font(.serif(19, .semibold))
+                                .foregroundStyle(Color.rust)
+                            Text("\(row.percent)%")
+                                .font(.mono(10, .regular))
+                                .tracking(.tracking(0.06, at: 10))
+                                .foregroundStyle(Color.monoLabel)
+                                .frame(width: 40, alignment: .trailing)
+                        }
+                        BarTrack(fraction: CGFloat(row.percent) / 100)
+                    }
+                }
             }
         }
-        .fieldPanel()
     }
 }
 
@@ -259,27 +279,21 @@ private struct RegionPanel: View {
     var locatedCount: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                FieldSectionLabel("field regions")
-                Text(regionSubtitle)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(FieldStyle.inkFaint)
-            }
-
+        StatSection(title: "Field Regions", subtitle: regionSubtitle) {
             if regions.isEmpty {
                 Text("No location-tagged detections yet")
-                    .font(.system(.body, design: .serif))
-                    .foregroundStyle(FieldStyle.inkMuted)
+                    .font(.serif(17))
+                    .foregroundStyle(Color.inkSoft)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
             } else {
-                ForEach(Array(regions.prefix(6).enumerated()), id: \.element.id) { index, region in
-                    RegionRow(index: index + 1, region: region)
+                VStack(spacing: 0) {
+                    ForEach(Array(regions.prefix(6).enumerated()), id: \.element.id) { index, region in
+                        RegionRow(index: index + 1, region: region)
+                    }
                 }
             }
         }
-        .fieldPanel()
     }
 
     private var regionSubtitle: String {
@@ -295,32 +309,34 @@ private struct RegionRow: View {
     var region: FieldRegion
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(String(format: "Area %02d", index))
-                    .font(.caption.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(FieldStyle.inkMuted)
+                    .font(.mono(11, .medium))
+                    .tracking(.tracking(0.08, at: 11))
+                    .foregroundStyle(Color.rust)
                 Text(region.key.coordinateLabel)
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(FieldStyle.inkFaint)
+                    .font(.mono(10, .regular))
+                    .tracking(.tracking(0.04, at: 10))
+                    .foregroundStyle(Color.monoLabel)
             }
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing, spacing: 3) {
                 Text("\(region.count)")
-                    .font(.body.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(FieldStyle.inkMuted)
+                    .font(.serif(19, .semibold))
+                    .foregroundStyle(Color.ink)
                 Text("\(region.speciesCount) species")
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(FieldStyle.inkFaint)
+                    .font(.mono(9, .regular))
+                    .tracking(.tracking(0.06, at: 9))
+                    .textCase(.uppercase)
+                    .foregroundStyle(Color.monoLabel)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 12)
         .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(FieldStyle.rule)
-                .frame(height: 0.5)
+            Rectangle().fill(Color.hairline).frame(height: 1)
         }
     }
 }
@@ -329,54 +345,28 @@ private struct DistributionRow: View {
     var bin: DistributionBin
 
     var body: some View {
-        VStack(spacing: 6) {
-            FieldRuleRow(label: bin.title, detail: "\(bin.percent)%", value: "\(bin.count)")
-
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(FieldStyle.paperRecessed)
-                    Capsule()
-                        .fill(bin.color.opacity(0.80))
-                        .frame(width: proxy.size.width * bin.fraction)
-                }
+        VStack(spacing: 7) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(bin.title)
+                    .font(.mono(11, .medium))
+                    .tracking(.tracking(0.06, at: 11))
+                    .foregroundStyle(Color.inkSoft)
+                Spacer()
+                Text("\(bin.count)")
+                    .font(.serif(19, .semibold))
+                    .foregroundStyle(Color.rust)
+                Text("\(bin.percent)%")
+                    .font(.mono(10, .regular))
+                    .tracking(.tracking(0.06, at: 10))
+                    .foregroundStyle(Color.monoLabel)
+                    .frame(width: 40, alignment: .trailing)
             }
-            .frame(height: 7)
+            BarTrack(fraction: bin.fraction)
         }
     }
 }
 
-private struct FieldRuleRow: View {
-    var label: String
-    var detail: String
-    var value: String
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(label)
-                .font(.caption.monospacedDigit().weight(.semibold))
-                .foregroundStyle(FieldStyle.inkMuted)
-                .frame(width: 68, alignment: .leading)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            Text(detail)
-                .font(.system(.body, design: .serif))
-                .foregroundStyle(FieldStyle.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Spacer()
-            Text(value)
-                .font(.body.monospacedDigit().weight(.semibold))
-                .foregroundStyle(FieldStyle.inkMuted)
-        }
-        .padding(.vertical, 4)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(FieldStyle.rule)
-                .frame(height: 0.5)
-        }
-    }
-}
+// MARK: - Models
 
 private struct StatMetric: Identifiable {
     var id: String { title }
@@ -385,13 +375,10 @@ private struct StatMetric: Identifiable {
 }
 
 private struct DistributionBin: Identifiable {
-    var id: String { label }
+    var id: String { title }
     var title: String
     var count: Int
     var total: Int
-    var color: Color
-
-    var label: String { title }
 
     var fraction: CGFloat {
         guard total > 0 else {

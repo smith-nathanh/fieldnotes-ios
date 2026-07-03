@@ -1,19 +1,18 @@
 import FieldnotesCore
 import SwiftUI
 
+/// Bordered plate holding a line-drawn animal glyph in ink (§4 plate badge).
 struct TaxonBadge: View {
     var taxon: Taxon
+    var size: CGFloat = 44
 
     var body: some View {
         Image(systemName: iconName)
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(foreground)
-            .frame(width: 32, height: 32)
-            .background(FieldStyle.paperRecessed, in: Circle())
-            .overlay {
-                Circle()
-                    .stroke(foreground.opacity(0.28), lineWidth: 1)
-            }
+            .font(.system(size: size * 0.36, weight: .regular))
+            .foregroundStyle(Color.ink)
+            .frame(width: size, height: size)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.paperCard))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.ink, lineWidth: 1.5))
             .accessibilityLabel(taxon.rawValue.capitalized)
     }
 
@@ -31,23 +30,6 @@ struct TaxonBadge: View {
             return "ant"
         case .unknown:
             return "questionmark"
-        }
-    }
-
-    private var foreground: Color {
-        switch taxon {
-        case .bird:
-            return FieldStyle.sky
-        case .mammal:
-            return FieldStyle.clay
-        case .amphibian:
-            return FieldStyle.leaf
-        case .reptile:
-            return FieldStyle.moss
-        case .insect:
-            return FieldStyle.moss
-        case .unknown:
-            return FieldStyle.inkFaint
         }
     }
 }

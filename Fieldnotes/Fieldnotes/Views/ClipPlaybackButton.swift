@@ -2,8 +2,16 @@ import AVFoundation
 import SwiftUI
 
 struct ClipPlaybackButton: View {
+    enum Style {
+        /// Small bordered circle for inline list rows.
+        case compact
+        /// Large filled rust circle for the signature-call module.
+        case hero
+    }
+
     var url: URL?
     var isBlocked = false
+    var style: Style = .compact
 
     @State private var player: AVAudioPlayer?
     @State private var isPlaying = false
@@ -14,16 +22,7 @@ struct ClipPlaybackButton: View {
         Button {
             togglePlayback()
         } label: {
-            Image(systemName: isPlaying ? "stop.fill" : "play.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(url == nil ? FieldStyle.inkFaint : FieldStyle.moss)
-                .frame(width: 32, height: 32)
-                .background(FieldStyle.paperRecessed, in: Circle())
-                .overlay {
-                    Circle()
-                        .stroke(FieldStyle.rule)
-                }
-                .contentShape(Circle())
+            label
         }
         .buttonStyle(.borderless)
         .accessibilityLabel(accessibilityLabel)
@@ -36,6 +35,27 @@ struct ClipPlaybackButton: View {
         }
         .onDisappear {
             stopPlayback(deactivateSession: false)
+        }
+    }
+
+    @ViewBuilder
+    private var label: some View {
+        switch style {
+        case .compact:
+            Image(systemName: isPlaying ? "stop.fill" : "play.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(url == nil ? Color.inkFaint : Color.rust)
+                .frame(width: 32, height: 32)
+                .background(Color.paperCard, in: Circle())
+                .overlay { Circle().stroke(Color.ink, lineWidth: 1) }
+                .contentShape(Circle())
+        case .hero:
+            Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(Color.paper)
+                .frame(width: 52, height: 52)
+                .background(Circle().fill(url == nil ? Color.tan : Color.rust))
+                .contentShape(Circle())
         }
     }
 

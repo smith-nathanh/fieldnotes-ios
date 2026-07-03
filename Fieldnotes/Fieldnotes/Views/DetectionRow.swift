@@ -8,33 +8,37 @@ struct DetectionRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            TaxonBadge(taxon: detection.taxon)
+            TaxonBadge(taxon: detection.taxon, size: 36)
+
             VStack(alignment: .leading, spacing: 3) {
                 Text(detection.commonName)
-                    .font(.system(.subheadline, design: .serif).weight(.semibold))
-                    .foregroundStyle(FieldStyle.ink)
+                    .font(.serif(18, .semibold))
+                    .foregroundStyle(Color.ink)
+                    .lineLimit(1)
                 Text(detection.detectedAt, format: .dateTime.month().day().hour().minute())
-                    .font(.caption)
-                    .foregroundStyle(FieldStyle.inkFaint)
+                    .font(.mono(10, .regular))
+                    .tracking(.tracking(0.06, at: 10))
+                    .textCase(.uppercase)
+                    .foregroundStyle(Color.monoLabel)
             }
-            Spacer()
+
+            Spacer(minLength: 8)
+
             ClipPlaybackButton(url: detection.clipURL, isBlocked: model.isListening)
+
             VStack(alignment: .trailing, spacing: 2) {
                 Text(scoreDisplay.value)
-                    .font(.callout.monospacedDigit().weight(.medium))
+                    .font(.serif(18, .semibold))
                     .foregroundStyle(scoreDisplay.color)
-                Text(scoreDisplay.label)
-                    .font(.caption2.weight(.medium))
-                    .textCase(.uppercase)
-                    .tracking(0.7)
-                    .foregroundStyle(FieldStyle.inkFaint)
+                Text(scoreDisplay.label.uppercased())
+                    .font(.mono(9, .regular))
+                    .tracking(.tracking(0.08, at: 9))
+                    .foregroundStyle(Color.monoLabel)
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 11)
         .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(FieldStyle.rule)
-                .frame(height: 0.5)
+            Rectangle().fill(Color.hairline).frame(height: 1)
         }
     }
 

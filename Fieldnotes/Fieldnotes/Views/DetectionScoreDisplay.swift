@@ -11,11 +11,11 @@ struct DetectionScoreDisplay {
         case .audio:
             value = "\(Int(score * 100))%"
             label = "confidence"
-            color = FieldStyle.confidenceColor(score)
+            color = .ink
         case .photo:
             value = score.formatted(.number.precision(.fractionLength(3)))
             label = "similarity"
-            color = FieldStyle.inkMuted
+            color = .inkSoft
         }
     }
 }
