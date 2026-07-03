@@ -4,6 +4,10 @@ import SwiftUI
 struct FieldnotesApp: App {
     @StateObject private var model = AppModel()
 
+    init() {
+        AlmanacFonts.registerAll()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

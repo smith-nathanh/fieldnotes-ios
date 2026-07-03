@@ -11,7 +11,7 @@ import SwiftUI
 // applying `.weight()` to a single variable face. Set `useBundledFonts` to
 // `false` to fall back to the system serif/monospaced stand-ins.
 
-private let useBundledFonts = false
+private let useBundledFonts = true
 
 extension Font {
     /// Editorial serif — display, body, and all numerals.
