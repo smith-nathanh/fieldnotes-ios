@@ -27,6 +27,13 @@ nonisolated struct BioCAPConfig: Decodable, Equatable {
     var promptTemplateCount: Int
 }
 
+nonisolated struct BioCAPAssetSummary: Equatable, Sendable {
+    var speciesCount: Int
+    var promptPreset: String
+    var promptTemplateCount: Int
+    var labelTextType: String
+}
+
 nonisolated final class BioCAPImageClassifier {
     private let model: MLModel
     private let species: [BioCAPSpeciesMetadata]
@@ -70,6 +77,16 @@ nonisolated final class BioCAPImageClassifier {
         }
 
         return Array(scores.sorted { $0.score > $1.score }.prefix(limit))
+    }
+
+    static func assetSummary(bundle: Bundle = .main) throws -> BioCAPAssetSummary {
+        let config = try loadConfig(bundle: bundle)
+        return BioCAPAssetSummary(
+            speciesCount: config.speciesCount,
+            promptPreset: config.promptPreset,
+            promptTemplateCount: config.promptTemplateCount,
+            labelTextType: config.labelTextType
+        )
     }
 
     private static func loadModel(bundle: Bundle) throws -> MLModel {

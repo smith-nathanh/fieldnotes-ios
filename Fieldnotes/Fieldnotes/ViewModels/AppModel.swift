@@ -119,6 +119,21 @@ final class AppModel: ObservableObject {
             .sorted { $0.detectedAt > $1.detectedAt }
     }
 
+    func addPhotoPredictionToAtlas(_ prediction: BioCAPPhotoPrediction) async {
+        let detectedAt = Date()
+        let week = Calendar(identifier: .iso8601).component(.weekOfYear, from: detectedAt)
+        let detection = FieldDetection(
+            scientificName: prediction.scientificName,
+            commonName: prediction.commonName,
+            taxon: Taxon(rawValue: prediction.taxon) ?? .unknown,
+            source: .photo,
+            confidence: prediction.score,
+            detectedAt: detectedAt,
+            week: week
+        )
+        await record(detection)
+    }
+
     private func record(_ detection: FieldDetection) async {
         let detection = detectionWithCurrentLocation(detection)
         let decision = store.decision(for: detection)
@@ -140,7 +155,7 @@ final class AppModel: ObservableObject {
 
         detections = store.detections.sorted { $0.detectedAt > $1.detectedAt }
         refreshDerivedState()
-        status = "\(detection.commonName) \(Int(detection.confidence * 100))%"
+        status = "\(detection.commonName) \(scoreText(for: detection))"
 
         do {
             try await repository.save(store.detections)
@@ -182,5 +197,14 @@ final class AppModel: ObservableObject {
 
     private static func clampedConfidenceThreshold(_ threshold: Float) -> Float {
         min(0.95, max(0.30, threshold))
+    }
+
+    private func scoreText(for detection: FieldDetection) -> String {
+        switch detection.source {
+        case .audio:
+            return "\(Int(detection.confidence * 100))%"
+        case .photo:
+            return "\(detection.confidence.formatted(.number.precision(.fractionLength(3)))) sim"
+        }
     }
 }

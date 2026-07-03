@@ -100,6 +100,70 @@ final class FieldnotesCoreTests: XCTestCase {
         XCTAssertEqual(store.detections[2].clipURL, strongerClip)
     }
 
+    func testReptileUsesLongerCooldownWindow() {
+        XCTAssertEqual(DetectionStore.cooldownSeconds(for: .reptile), 10 * 60)
+    }
+
+    func testLegacyDetectionDecodingDefaultsSourceToAudio() throws {
+        let json = """
+        {
+          "id": "11111111-1111-1111-1111-111111111111",
+          "scientificName": "Pica pica",
+          "commonName": "Eurasian Magpie",
+          "taxon": "bird",
+          "confidence": 0.91,
+          "detectedAt": "2026-07-01T12:00:00Z",
+          "week": 27
+        }
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let detection = try decoder.decode(FieldDetection.self, from: Data(json.utf8))
+
+        XCTAssertEqual(detection.source, .audio)
+    }
+
+    func testPhotoDetectionSourceRoundTrips() throws {
+        let detection = FieldDetection(
+            scientificName: "Sylvilagus floridanus",
+            commonName: "Eastern Cottontail",
+            taxon: .mammal,
+            source: .photo,
+            confidence: 0.396,
+            detectedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            week: 27
+        )
+
+        let encoded = try JSONEncoder().encode(detection)
+        let decoded = try JSONDecoder().decode(FieldDetection.self, from: encoded)
+
+        XCTAssertEqual(decoded.source, .photo)
+        XCTAssertEqual(decoded.confidence, 0.396, accuracy: 0.0001)
+    }
+
+    func testSummaryTracksBestScoreSource() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let audio = FieldDetection(
+            scientificName: "Pica pica",
+            commonName: "Eurasian Magpie",
+            confidence: 0.80,
+            detectedAt: start,
+            week: 8
+        )
+        let photo = FieldDetection(
+            scientificName: "Pica pica",
+            commonName: "Eurasian Magpie",
+            source: .photo,
+            confidence: 0.92,
+            detectedAt: start.addingTimeInterval(60),
+            week: 8
+        )
+        let store = DetectionStore(detections: [audio, photo])
+
+        XCTAssertEqual(store.summaries().first?.bestSource, .photo)
+    }
+
     func testScoringAppliesConfidenceAndRangeGateWithWhitelistBypass() {
         let settings = DetectionSettings(confidenceThreshold: 0.7)
         let scores = [

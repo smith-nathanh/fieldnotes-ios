@@ -19,9 +19,16 @@ struct DetectionRow: View {
             }
             Spacer()
             ClipPlaybackButton(url: detection.clipURL, isBlocked: model.isListening)
-            Text("\(Int(detection.confidence * 100))%")
-                .font(.callout.monospacedDigit().weight(.medium))
-                .foregroundStyle(FieldStyle.confidenceColor(detection.confidence))
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(scoreDisplay.value)
+                    .font(.callout.monospacedDigit().weight(.medium))
+                    .foregroundStyle(scoreDisplay.color)
+                Text(scoreDisplay.label)
+                    .font(.caption2.weight(.medium))
+                    .textCase(.uppercase)
+                    .tracking(0.7)
+                    .foregroundStyle(FieldStyle.inkFaint)
+            }
         }
         .padding(.vertical, 8)
         .overlay(alignment: .bottom) {
@@ -29,5 +36,9 @@ struct DetectionRow: View {
                 .fill(FieldStyle.rule)
                 .frame(height: 0.5)
         }
+    }
+
+    private var scoreDisplay: DetectionScoreDisplay {
+        DetectionScoreDisplay(source: detection.source, score: detection.confidence)
     }
 }

@@ -23,8 +23,8 @@ struct SpeciesDetailView: View {
                     }
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        FieldMetric(title: "Clips", value: "\(summary.count)")
-                        FieldMetric(title: "Best", value: "\(Int(summary.bestConfidence * 100))%")
+                        FieldMetric(title: "Records", value: "\(summary.count)")
+                        FieldMetric(title: bestScoreTitle, value: bestScoreDisplay.value)
                         FieldMetric(title: "First", value: summary.firstSeen.formatted(.dateTime.month().day()))
                         FieldMetric(title: "Last", value: summary.lastSeen.formatted(.dateTime.month().day()))
                     }
@@ -32,7 +32,7 @@ struct SpeciesDetailView: View {
                 .fieldPanel()
 
                 VStack(alignment: .leading, spacing: 12) {
-                    FieldSectionLabel("recordings", systemImage: "waveform")
+                    FieldSectionLabel("records", systemImage: "list.bullet")
                     ForEach(model.detections(for: summary)) { detection in
                         DetectionRow(detection: detection)
                     }
@@ -44,6 +44,19 @@ struct SpeciesDetailView: View {
         }
         .fieldPageBackground()
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(FieldStyle.paper, for: .navigationBar)
+            .toolbarBackground(FieldStyle.paper, for: .navigationBar)
+    }
+
+    private var bestScoreDisplay: DetectionScoreDisplay {
+        DetectionScoreDisplay(source: summary.bestSource, score: summary.bestConfidence)
+    }
+
+    private var bestScoreTitle: String {
+        switch summary.bestSource {
+        case .audio:
+            return "Best"
+        case .photo:
+            return "Similarity"
+        }
     }
 }

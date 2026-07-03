@@ -63,6 +63,7 @@ public struct DetectionStore: Sendable {
                 taxon: first.taxon,
                 count: items.count,
                 bestConfidence: best.confidence,
+                bestSource: best.source,
                 firstSeen: first.detectedAt,
                 lastSeen: last.detectedAt
             )
@@ -79,7 +80,7 @@ public struct DetectionStore: Sendable {
         switch taxon {
         case .bird, .mammal, .unknown:
             return 5 * 60
-        case .amphibian:
+        case .amphibian, .reptile:
             return 10 * 60
         case .insect:
             return 30 * 60

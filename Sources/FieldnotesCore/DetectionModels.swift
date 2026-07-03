@@ -4,8 +4,14 @@ public enum Taxon: String, Codable, CaseIterable, Sendable {
     case bird
     case mammal
     case amphibian
+    case reptile
     case insect
     case unknown
+}
+
+public enum DetectionSource: String, Codable, Sendable {
+    case audio
+    case photo
 }
 
 public struct DetectionSettings: Codable, Equatable, Sendable {
@@ -72,6 +78,7 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
     public var scientificName: String
     public var commonName: String
     public var taxon: Taxon
+    public var source: DetectionSource
     public var confidence: Float
     public var detectedAt: Date
     public var clipURL: URL?
@@ -84,6 +91,7 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         scientificName: String,
         commonName: String,
         taxon: Taxon = .bird,
+        source: DetectionSource = .audio,
         confidence: Float,
         detectedAt: Date,
         clipURL: URL? = nil,
@@ -95,12 +103,42 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         self.scientificName = scientificName
         self.commonName = commonName
         self.taxon = taxon
+        self.source = source
         self.confidence = confidence
         self.detectedAt = detectedAt
         self.clipURL = clipURL
         self.latitude = latitude
         self.longitude = longitude
         self.week = week
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case scientificName
+        case commonName
+        case taxon
+        case source
+        case confidence
+        case detectedAt
+        case clipURL
+        case latitude
+        case longitude
+        case week
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        scientificName = try container.decode(String.self, forKey: .scientificName)
+        commonName = try container.decode(String.self, forKey: .commonName)
+        taxon = try container.decode(Taxon.self, forKey: .taxon)
+        source = try container.decodeIfPresent(DetectionSource.self, forKey: .source) ?? .audio
+        confidence = try container.decode(Float.self, forKey: .confidence)
+        detectedAt = try container.decode(Date.self, forKey: .detectedAt)
+        clipURL = try container.decodeIfPresent(URL.self, forKey: .clipURL)
+        latitude = try container.decodeIfPresent(Double.self, forKey: .latitude)
+        longitude = try container.decodeIfPresent(Double.self, forKey: .longitude)
+        week = try container.decode(Int.self, forKey: .week)
     }
 }
 
@@ -111,6 +149,7 @@ public struct SpeciesSummary: Identifiable, Equatable, Sendable {
     public var taxon: Taxon
     public var count: Int
     public var bestConfidence: Float
+    public var bestSource: DetectionSource
     public var firstSeen: Date
     public var lastSeen: Date
 
@@ -120,6 +159,7 @@ public struct SpeciesSummary: Identifiable, Equatable, Sendable {
         taxon: Taxon,
         count: Int,
         bestConfidence: Float,
+        bestSource: DetectionSource = .audio,
         firstSeen: Date,
         lastSeen: Date
     ) {
@@ -128,6 +168,7 @@ public struct SpeciesSummary: Identifiable, Equatable, Sendable {
         self.taxon = taxon
         self.count = count
         self.bestConfidence = bestConfidence
+        self.bestSource = bestSource
         self.firstSeen = firstSeen
         self.lastSeen = lastSeen
     }

@@ -25,6 +25,8 @@ struct TaxonBadge: View {
             return "hare"
         case .amphibian:
             return "drop"
+        case .reptile:
+            return "lizard"
         case .insect:
             return "ant"
         case .unknown:
@@ -40,6 +42,8 @@ struct TaxonBadge: View {
             return FieldStyle.clay
         case .amphibian:
             return FieldStyle.leaf
+        case .reptile:
+            return FieldStyle.moss
         case .insect:
             return FieldStyle.moss
         case .unknown:

@@ -3,12 +3,16 @@ import SwiftUI
 import UIKit
 
 struct PhotoClassifierView: View {
+    @EnvironmentObject private var model: AppModel
     @State private var selectedItem: PhotosPickerItem?
     @State private var selectedImage: UIImage?
     @State private var predictions: [BioCAPPhotoPrediction] = []
     @State private var status: PhotoClassificationStatus = .idle
     @State private var elapsedSeconds: TimeInterval?
     @State private var isShowingCamera = false
+    @State private var addedScientificNames: Set<String> = []
+    @State private var addingScientificName: String?
+    @State private var assetSummary: BioCAPAssetSummary?
 
     var body: some View {
         NavigationStack {
@@ -26,7 +30,11 @@ struct PhotoClassifierView: View {
                     PhotoResultsPanel(
                         status: status,
                         predictions: predictions,
-                        elapsedSeconds: elapsedSeconds
+                        elapsedSeconds: elapsedSeconds,
+                        assetSummary: assetSummary,
+                        addedScientificNames: addedScientificNames,
+                        addingScientificName: addingScientificName,
+                        onAddToAtlas: addToAtlas
                     )
                 }
                 .padding(.horizontal, 18)
@@ -38,6 +46,9 @@ struct PhotoClassifierView: View {
             .onChange(of: selectedItem) { _, item in
                 guard let item else { return }
                 classify(item)
+            }
+            .task {
+                loadAssetSummary()
             }
             .fullScreenCover(isPresented: $isShowingCamera) {
                 CameraCaptureView { image in
@@ -64,6 +75,8 @@ struct PhotoClassifierView: View {
         status = .classifying
         predictions = []
         elapsedSeconds = nil
+        addedScientificNames = []
+        addingScientificName = nil
 
         Task {
             do {
@@ -103,6 +116,8 @@ struct PhotoClassifierView: View {
         status = .classifying
         predictions = []
         elapsedSeconds = nil
+        addedScientificNames = []
+        addingScientificName = nil
 
         Task {
             do {
@@ -126,6 +141,25 @@ struct PhotoClassifierView: View {
                 status = .failed(error.localizedDescription)
             }
         }
+    }
+
+    private func addToAtlas(_ prediction: BioCAPPhotoPrediction) {
+        guard addingScientificName == nil else {
+            return
+        }
+        addingScientificName = prediction.scientificName
+        Task {
+            await model.addPhotoPredictionToAtlas(prediction)
+            addedScientificNames.insert(prediction.scientificName)
+            addingScientificName = nil
+        }
+    }
+
+    private func loadAssetSummary() {
+        guard assetSummary == nil else {
+            return
+        }
+        assetSummary = try? BioCAPImageClassifier.assetSummary()
     }
 }
 
@@ -235,12 +269,23 @@ private struct PhotoResultsPanel: View {
     var status: PhotoClassificationStatus
     var predictions: [BioCAPPhotoPrediction]
     var elapsedSeconds: TimeInterval?
+    var assetSummary: BioCAPAssetSummary?
+    var addedScientificNames: Set<String>
+    var addingScientificName: String?
+    var onAddToAtlas: (BioCAPPhotoPrediction) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 FieldSectionLabel("top matches", systemImage: "scope")
                 Spacer()
+                if let assetSummary {
+                    FieldPill(
+                        "\(assetSummary.speciesCount.formatted()) species",
+                        systemImage: "square.stack.3d.up",
+                        color: FieldStyle.leaf
+                    )
+                }
                 if let elapsedSeconds {
                     FieldPill("\(elapsedSeconds.formatted(.number.precision(.fractionLength(2))))s", systemImage: "timer", color: FieldStyle.sky)
                 }
@@ -264,7 +309,14 @@ private struct PhotoResultsPanel: View {
             case .ready:
                 VStack(spacing: 10) {
                     ForEach(Array(predictions.enumerated()), id: \.offset) { index, prediction in
-                        PhotoPredictionRow(rank: index + 1, prediction: prediction)
+                        PhotoPredictionRow(
+                            rank: index + 1,
+                            prediction: prediction,
+                            isAdded: addedScientificNames.contains(prediction.scientificName),
+                            isAdding: addingScientificName == prediction.scientificName,
+                            isAddDisabled: addingScientificName != nil,
+                            onAddToAtlas: { onAddToAtlas(prediction) }
+                        )
                     }
                 }
             case .failed(let message):
@@ -280,38 +332,59 @@ private struct PhotoResultsPanel: View {
 private struct PhotoPredictionRow: View {
     var rank: Int
     var prediction: BioCAPPhotoPrediction
+    var isAdded: Bool
+    var isAdding: Bool
+    var isAddDisabled: Bool
+    var onAddToAtlas: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text("\(rank)")
-                .font(.headline.monospacedDigit().weight(.bold))
-                .foregroundStyle(FieldStyle.paperRaised)
-                .frame(width: 34, height: 34)
-                .background(FieldStyle.moss, in: Circle())
+        VStack(spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
+                Text("\(rank)")
+                    .font(.headline.monospacedDigit().weight(.bold))
+                    .foregroundStyle(FieldStyle.paperRaised)
+                    .frame(width: 34, height: 34)
+                    .background(FieldStyle.moss, in: Circle())
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(prediction.commonName)
-                    .font(.system(.headline, design: .serif).weight(.semibold))
-                    .foregroundStyle(FieldStyle.ink)
-                    .lineLimit(2)
-                Text(prediction.scientificName)
-                    .font(.subheadline.italic())
-                    .foregroundStyle(FieldStyle.inkMuted)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(prediction.commonName)
+                        .font(.system(.headline, design: .serif).weight(.semibold))
+                        .foregroundStyle(FieldStyle.ink)
+                        .lineLimit(2)
+                    Text(prediction.scientificName)
+                        .font(.subheadline.italic())
+                        .foregroundStyle(FieldStyle.inkMuted)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 10)
+
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(prediction.score.formatted(.number.precision(.fractionLength(3))))
+                        .font(.headline.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(FieldStyle.ink)
+                    Text("similarity")
+                        .font(.caption2.weight(.medium))
+                        .textCase(.uppercase)
+                        .tracking(0.7)
+                        .foregroundStyle(FieldStyle.inkFaint)
+                }
             }
 
-            Spacer(minLength: 10)
-
-            VStack(alignment: .trailing, spacing: 3) {
-                Text(prediction.score.formatted(.number.precision(.fractionLength(3))))
-                    .font(.headline.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(FieldStyle.ink)
-                Text("similarity")
-                    .font(.caption2.weight(.medium))
-                    .textCase(.uppercase)
-                    .tracking(0.7)
-                    .foregroundStyle(FieldStyle.inkFaint)
+            Button(action: onAddToAtlas) {
+                Label(addButtonTitle, systemImage: addButtonSystemImage)
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .foregroundStyle(isAdded || isAddDisabled ? FieldStyle.inkMuted : FieldStyle.moss)
+                    .background(FieldStyle.paperRecessed, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(FieldStyle.rule)
+                    }
             }
+            .buttonStyle(.plain)
+            .disabled(isAdded || isAddDisabled)
         }
         .padding(12)
         .background(FieldStyle.paper, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -319,6 +392,26 @@ private struct PhotoPredictionRow: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(FieldStyle.rule)
         }
+    }
+
+    private var addButtonTitle: String {
+        if isAdded {
+            return "Added to Atlas"
+        }
+        if isAdding {
+            return "Adding"
+        }
+        return "Add to Atlas"
+    }
+
+    private var addButtonSystemImage: String {
+        if isAdded {
+            return "checkmark.circle.fill"
+        }
+        if isAdding {
+            return "hourglass"
+        }
+        return "plus.circle"
     }
 }
 

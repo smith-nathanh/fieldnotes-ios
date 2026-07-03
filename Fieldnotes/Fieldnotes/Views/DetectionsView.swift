@@ -127,12 +127,23 @@ private struct SpeciesSummaryCard: View {
                 Text("\(summary.count)")
                     .font(.title3.monospacedDigit().weight(.semibold))
                     .foregroundStyle(FieldStyle.ink)
-                Text("\(Int(summary.bestConfidence * 100))%")
-                    .font(.caption.monospacedDigit().weight(.medium))
-                    .foregroundStyle(FieldStyle.confidenceColor(summary.bestConfidence))
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(scoreDisplay.value)
+                        .font(.caption.monospacedDigit().weight(.medium))
+                        .foregroundStyle(scoreDisplay.color)
+                    Text(scoreDisplay.label)
+                        .font(.caption2.weight(.medium))
+                        .textCase(.uppercase)
+                        .tracking(0.7)
+                        .foregroundStyle(FieldStyle.inkFaint)
+                }
             }
         }
         .fieldPanel()
+    }
+
+    private var scoreDisplay: DetectionScoreDisplay {
+        DetectionScoreDisplay(source: summary.bestSource, score: summary.bestConfidence)
     }
 
     private var isNew: Bool {

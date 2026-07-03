@@ -50,7 +50,7 @@ struct DetectionRepository: Sendable {
 
     private func fetchDetections(in database: OpaquePointer) throws -> [FieldDetection] {
         let sql = """
-        SELECT id, scientific_name, common_name, taxon, confidence, detected_at, clip_path, latitude, longitude, week
+        SELECT id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week
         FROM detections
         ORDER BY detected_at DESC
         """
@@ -111,6 +111,7 @@ struct DetectionRepository: Sendable {
                 scientific_name TEXT NOT NULL,
                 common_name TEXT NOT NULL,
                 taxon TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'audio',
                 confidence REAL NOT NULL,
                 detected_at TEXT NOT NULL,
                 clip_path TEXT,
@@ -120,6 +121,12 @@ struct DetectionRepository: Sendable {
             )
             """,
             in: database
+        )
+        try addColumnIfNeeded(
+            named: "source",
+            definition: "TEXT NOT NULL DEFAULT 'audio'",
+            in: "detections",
+            database: database
         )
         try execute(
             "CREATE INDEX IF NOT EXISTS idx_detections_species_seen ON detections(scientific_name, detected_at)",
@@ -134,8 +141,8 @@ struct DetectionRepository: Sendable {
     private func insert(_ detections: [FieldDetection], in database: OpaquePointer) throws {
         let sql = """
         INSERT OR REPLACE INTO detections (
-            id, scientific_name, common_name, taxon, confidence, detected_at, clip_path, latitude, longitude, week
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
@@ -148,24 +155,25 @@ struct DetectionRepository: Sendable {
             sqlite3_bind_text(statement, 2, detection.scientificName, -1, sqliteTransient)
             sqlite3_bind_text(statement, 3, detection.commonName, -1, sqliteTransient)
             sqlite3_bind_text(statement, 4, detection.taxon.rawValue, -1, sqliteTransient)
-            sqlite3_bind_double(statement, 5, Double(detection.confidence))
-            sqlite3_bind_text(statement, 6, Self.dateFormatter.string(from: detection.detectedAt), -1, sqliteTransient)
+            sqlite3_bind_text(statement, 5, detection.source.rawValue, -1, sqliteTransient)
+            sqlite3_bind_double(statement, 6, Double(detection.confidence))
+            sqlite3_bind_text(statement, 7, Self.dateFormatter.string(from: detection.detectedAt), -1, sqliteTransient)
             if let clipURL = detection.clipURL {
-                sqlite3_bind_text(statement, 7, clipURL.path, -1, sqliteTransient)
-            } else {
-                sqlite3_bind_null(statement, 7)
-            }
-            if let latitude = detection.latitude {
-                sqlite3_bind_double(statement, 8, latitude)
+                sqlite3_bind_text(statement, 8, clipURL.path, -1, sqliteTransient)
             } else {
                 sqlite3_bind_null(statement, 8)
             }
-            if let longitude = detection.longitude {
-                sqlite3_bind_double(statement, 9, longitude)
+            if let latitude = detection.latitude {
+                sqlite3_bind_double(statement, 9, latitude)
             } else {
                 sqlite3_bind_null(statement, 9)
             }
-            sqlite3_bind_int(statement, 10, Int32(detection.week))
+            if let longitude = detection.longitude {
+                sqlite3_bind_double(statement, 10, longitude)
+            } else {
+                sqlite3_bind_null(statement, 10)
+            }
+            sqlite3_bind_int(statement, 11, Int32(detection.week))
 
             guard sqlite3_step(statement) == SQLITE_DONE else {
                 throw sqliteError(database, message: "Could not insert detection")
@@ -182,36 +190,68 @@ struct DetectionRepository: Sendable {
             let scientificName = sqlite3_column_text(statement, 1).map({ String(cString: $0) }),
             let commonName = sqlite3_column_text(statement, 2).map({ String(cString: $0) }),
             let taxonRaw = sqlite3_column_text(statement, 3).map({ String(cString: $0) }),
-            let detectedAtRaw = sqlite3_column_text(statement, 5).map({ String(cString: $0) }),
+            let sourceRaw = sqlite3_column_text(statement, 4).map({ String(cString: $0) }),
+            let detectedAtRaw = sqlite3_column_text(statement, 6).map({ String(cString: $0) }),
             let detectedAt = Self.dateFormatter.date(from: detectedAtRaw)
         else {
             throw DetectionRepositoryError.decodeFailed
         }
 
         let clipURL: URL?
-        if sqlite3_column_type(statement, 6) == SQLITE_NULL {
+        if sqlite3_column_type(statement, 7) == SQLITE_NULL {
             clipURL = nil
-        } else if let path = sqlite3_column_text(statement, 6).map({ String(cString: $0) }) {
+        } else if let path = sqlite3_column_text(statement, 7).map({ String(cString: $0) }) {
             clipURL = URL(fileURLWithPath: path)
         } else {
             clipURL = nil
         }
 
-        let latitude = sqlite3_column_type(statement, 7) == SQLITE_NULL ? nil : sqlite3_column_double(statement, 7)
-        let longitude = sqlite3_column_type(statement, 8) == SQLITE_NULL ? nil : sqlite3_column_double(statement, 8)
+        let latitude = sqlite3_column_type(statement, 8) == SQLITE_NULL ? nil : sqlite3_column_double(statement, 8)
+        let longitude = sqlite3_column_type(statement, 9) == SQLITE_NULL ? nil : sqlite3_column_double(statement, 9)
 
         return FieldDetection(
             id: id,
             scientificName: scientificName,
             commonName: commonName,
             taxon: Taxon(rawValue: taxonRaw) ?? .unknown,
-            confidence: Float(sqlite3_column_double(statement, 4)),
+            source: DetectionSource(rawValue: sourceRaw) ?? .audio,
+            confidence: Float(sqlite3_column_double(statement, 5)),
             detectedAt: detectedAt,
             clipURL: clipURL,
             latitude: latitude,
             longitude: longitude,
-            week: Int(sqlite3_column_int(statement, 9))
+            week: Int(sqlite3_column_int(statement, 10))
         )
+    }
+
+    private func addColumnIfNeeded(
+        named columnName: String,
+        definition: String,
+        in tableName: String,
+        database: OpaquePointer
+    ) throws {
+        let columns = try columnNames(in: tableName, database: database)
+        guard !columns.contains(columnName) else {
+            return
+        }
+        try execute("ALTER TABLE \(tableName) ADD COLUMN \(columnName) \(definition)", in: database)
+    }
+
+    private func columnNames(in tableName: String, database: OpaquePointer) throws -> Set<String> {
+        let sql = "PRAGMA table_info(\(tableName))"
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
+            throw sqliteError(database, message: "Could not inspect field log database")
+        }
+        defer { sqlite3_finalize(statement) }
+
+        var columns = Set<String>()
+        while sqlite3_step(statement) == SQLITE_ROW {
+            if let name = sqlite3_column_text(statement, 1).map({ String(cString: $0) }) {
+                columns.insert(name)
+            }
+        }
+        return columns
     }
 
     private func execute(_ sql: String, in database: OpaquePointer) throws {

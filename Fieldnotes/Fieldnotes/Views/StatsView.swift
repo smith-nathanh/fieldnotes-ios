@@ -49,6 +49,10 @@ struct StatsView: View {
         return model.detections.filter { $0.detectedAt >= start }
     }
 
+    private var audioDetections: [FieldDetection] {
+        model.detections.filter { $0.source == .audio }
+    }
+
     private var todaySpeciesCount: Int {
         Set(todayDetections.map(\.scientificName)).count
     }
@@ -66,14 +70,14 @@ struct StatsView: View {
     }
 
     private var bestDetection: FieldDetection? {
-        model.detections.max { $0.confidence < $1.confidence }
+        audioDetections.max { $0.confidence < $1.confidence }
     }
 
     private var overviewMetrics: [StatMetric] {
         [
             StatMetric(title: "detections", value: "\(model.detections.count)"),
             StatMetric(title: "species", value: "\(model.summaries.count)"),
-            StatMetric(title: "best", value: bestConfidence),
+            StatMetric(title: "best audio", value: bestConfidence),
             StatMetric(title: "clips", value: "\(clipCount)"),
             StatMetric(title: "today", value: "\(todayDetections.count)"),
             StatMetric(title: "week", value: "\(weekDetections.count)"),
@@ -138,8 +142,8 @@ struct StatsView: View {
     private func confidenceBin(title: String, range: ClosedRange<Float>, color: Color) -> DistributionBin {
         DistributionBin(
             title: title,
-            count: model.detections.filter { range.contains($0.confidence) }.count,
-            total: model.detections.count,
+            count: audioDetections.filter { range.contains($0.confidence) }.count,
+            total: audioDetections.count,
             color: color
         )
     }
@@ -147,8 +151,8 @@ struct StatsView: View {
     private func confidenceBin(title: String, range: Range<Float>, color: Color) -> DistributionBin {
         DistributionBin(
             title: title,
-            count: model.detections.filter { range.contains($0.confidence) }.count,
-            total: model.detections.count,
+            count: audioDetections.filter { range.contains($0.confidence) }.count,
+            total: audioDetections.count,
             color: color
         )
     }
@@ -213,7 +217,7 @@ private struct ConfidenceDistributionPanel: View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 FieldSectionLabel("confidence")
-                Text("how strongly the model scored saved detections")
+                Text("how strongly BirdNET scored saved audio detections")
                     .font(.caption.monospaced())
                     .foregroundStyle(FieldStyle.inkFaint)
             }
@@ -455,6 +459,8 @@ private extension Taxon {
             return "Mammals"
         case .amphibian:
             return "Amphibians"
+        case .reptile:
+            return "Reptiles"
         case .insect:
             return "Insects"
         case .unknown:
