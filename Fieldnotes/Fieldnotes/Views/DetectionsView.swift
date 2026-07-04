@@ -189,7 +189,7 @@ private struct SpeciesLogRow: View {
     }
 
     private var isNew: Bool {
-        Calendar.current.isDate(summary.firstSeen, inSameDayAs: Date())
+        summary.firstSeen >= Date().addingTimeInterval(-7 * 24 * 60 * 60)
     }
 
     private var isRecent: Bool {

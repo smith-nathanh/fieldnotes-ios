@@ -6,6 +6,8 @@ struct SpeciesDetailView: View {
     @Environment(\.dismiss) private var dismiss
     var summary: SpeciesSummary
 
+    @State private var shareItem: ShareImageItem?
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
@@ -28,6 +30,9 @@ struct SpeciesDetailView: View {
                         SimilarityChip(value: bestScoreDisplay.value, unit: "similarity")
                     }
                     MetricChip(value: "\(summary.count)", label: "detections", valueColor: .ink)
+                    if isNewLifer {
+                        TagChip(text: "new", textColor: .ink, fill: .paperCard, borderColor: .ink)
+                    }
                     Spacer(minLength: 0)
                 }
 
@@ -45,6 +50,9 @@ struct SpeciesDetailView: View {
         }
         .almanacBackground()
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $shareItem) { item in
+            ShareSheet(items: [item.image])
+        }
     }
 
     private var navRow: some View {
@@ -64,13 +72,41 @@ struct SpeciesDetailView: View {
 
             Spacer()
 
-            ShareLink(item: shareText) {
+            Button {
+                shareFieldCard()
+            } label: {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: 17, weight: .regular))
                     .foregroundStyle(Color.rust)
             }
+            .buttonStyle(.plain)
         }
         .padding(.top, 4)
+    }
+
+    private func shareFieldCard() {
+        let card = FieldCardView(
+            commonName: summary.commonName,
+            scientificName: summary.scientificName,
+            taxon: summary.taxon,
+            source: summary.bestSource,
+            metricValue: bestScoreDisplay.value,
+            metricLabel: bestScoreDisplay.label,
+            dateText: summary.lastSeen.formatted(.dateTime.month(.abbreviated).day().year()),
+            placeText: placeText
+        )
+        if let image = renderFieldCard(card) {
+            shareItem = ShareImageItem(image: image)
+        }
+    }
+
+    private var placeText: String? {
+        guard let located = detections.first(where: { $0.latitude != nil && $0.longitude != nil }),
+              let latitude = located.latitude,
+              let longitude = located.longitude else {
+            return nil
+        }
+        return String(format: "%.2f, %.2f", latitude, longitude)
     }
 
     private var detections: [FieldDetection] {
@@ -85,12 +121,13 @@ struct SpeciesDetailView: View {
         DetectionScoreDisplay(source: summary.bestSource, score: summary.bestConfidence)
     }
 
-    private var sectionTitle: String {
-        summary.bestSource == .audio ? "Your Recordings" : "BioCAP · Top Matches"
+    /// A recent addition to the life list — first recorded within the last week.
+    private var isNewLifer: Bool {
+        summary.firstSeen >= Date().addingTimeInterval(-7 * 24 * 60 * 60)
     }
 
-    private var shareText: String {
-        "Fieldnotes — \(summary.commonName) (\(summary.scientificName))"
+    private var sectionTitle: String {
+        summary.bestSource == .audio ? "Your Recordings" : "BioCAP · Top Matches"
     }
 }
 

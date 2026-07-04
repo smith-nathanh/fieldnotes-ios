@@ -15,6 +15,8 @@ struct StatsView: View {
                     } else {
                         OverviewPanel(metrics: overviewMetrics)
 
+                        LifeListPanel(total: model.summaries.count, newThisWeek: newLiferCount)
+
                         RankedPanel(
                             title: "Top Species",
                             subtitle: "most heard, all time",
@@ -71,6 +73,11 @@ struct StatsView: View {
             StatMetric(title: "today", value: "\(todayDetections.count)"),
             StatMetric(title: "week", value: "\(weekDetections.count)"),
         ]
+    }
+
+    private var newLiferCount: Int {
+        let weekAgo = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+        return model.summaries.filter { $0.firstSeen >= weekAgo }.count
     }
 
     private var bestConfidence: String {
@@ -200,6 +207,20 @@ private struct OverviewPanel: View {
         LazyVGrid(columns: columns, spacing: 20) {
             ForEach(metrics) { metric in
                 MetricBlock(title: metric.title, value: metric.value)
+            }
+        }
+    }
+}
+
+private struct LifeListPanel: View {
+    var total: Int
+    var newThisWeek: Int
+
+    var body: some View {
+        StatSection(title: "Life List", subtitle: "distinct species recorded all time") {
+            HStack(alignment: .top, spacing: 16) {
+                MetricBlock(title: "Species", value: "\(total)", valueColor: .rust)
+                MetricBlock(title: "New this week", value: "\(newThisWeek)")
             }
         }
     }
