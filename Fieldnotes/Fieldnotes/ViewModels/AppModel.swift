@@ -2,6 +2,7 @@ import Combine
 import CoreLocation
 import Foundation
 import FieldnotesCore
+import UIKit
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -22,6 +23,7 @@ final class AppModel: ObservableObject {
     private let repository: DetectionRepository
     private let injectedDetector: DetectionEngine?
     private let clipWriter = AudioClipWriter()
+    private let photoStore = PhotoStore()
     private let locationService = LocationService()
     private var listeningTask: Task<Void, Never>?
     private var sessionStartedAt: Date?
@@ -159,16 +161,20 @@ final class AppModel: ObservableObject {
             .sorted { $0.detectedAt > $1.detectedAt }
     }
 
-    func addPhotoPredictionToLog(_ prediction: BioCAPPhotoPrediction) async {
+    func addPhotoPredictionToLog(_ prediction: BioCAPPhotoPrediction, image: UIImage? = nil) async {
+        let id = UUID()
         let detectedAt = Date()
         let week = Calendar(identifier: .iso8601).component(.weekOfYear, from: detectedAt)
+        let photoURL = image.flatMap { try? photoStore.writePhoto($0, id: id) }
         let detection = FieldDetection(
+            id: id,
             scientificName: prediction.scientificName,
             commonName: prediction.commonName,
             taxon: Taxon(rawValue: prediction.taxon) ?? .unknown,
             source: .photo,
             confidence: prediction.score,
             detectedAt: detectedAt,
+            photoURL: photoURL,
             week: week
         )
         await record(detection)
@@ -178,27 +184,35 @@ final class AppModel: ObservableObject {
         let detection = enrichedDetection(detection)
         let decision = store.decision(for: detection)
 
-        // Determine which clip to discard, and whether the log actually changed,
-        // before mutating the store.
+        // Determine which media to discard, and whether the log actually
+        // changed, before mutating the store.
         let clipToDelete: URL?
+        let photoToDelete: URL?
         let didLog: Bool
         switch decision {
         case .insert:
             clipToDelete = nil
+            photoToDelete = nil
             didLog = true
         case .replace(let existingID):
-            // Keep the new (stronger) clip; drop the one being replaced.
-            clipToDelete = store.detections.first { $0.id == existingID }?.clipURL
+            // Keep the new (stronger) capture; drop the one being replaced.
+            let existing = store.detections.first { $0.id == existingID }
+            clipToDelete = existing?.clipURL
+            photoToDelete = existing?.photoURL
             didLog = true
         case .skip:
-            // Discard this call entirely, including its freshly written clip.
+            // Discard this call entirely, including its freshly written media.
             clipToDelete = detection.clipURL
+            photoToDelete = detection.photoURL
             didLog = false
         }
 
         _ = store.record(detection)
         if let clipToDelete {
             clipWriter.deleteClip(at: clipToDelete)
+        }
+        if let photoToDelete {
+            photoStore.deletePhoto(at: photoToDelete)
         }
 
         // A skipped call within the cooldown window changes nothing — leave the

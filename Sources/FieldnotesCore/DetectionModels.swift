@@ -82,6 +82,8 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
     public var confidence: Float
     public var detectedAt: Date
     public var clipURL: URL?
+    /// On-disk path to the saved capture image, for photo detections.
+    public var photoURL: URL?
     public var latitude: Double?
     public var longitude: Double?
     public var week: Int
@@ -103,6 +105,7 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         confidence: Float,
         detectedAt: Date,
         clipURL: URL? = nil,
+        photoURL: URL? = nil,
         latitude: Double? = nil,
         longitude: Double? = nil,
         week: Int,
@@ -119,6 +122,7 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         self.confidence = confidence
         self.detectedAt = detectedAt
         self.clipURL = clipURL
+        self.photoURL = photoURL
         self.latitude = latitude
         self.longitude = longitude
         self.week = week
@@ -137,6 +141,7 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         case confidence
         case detectedAt
         case clipURL
+        case photoURL
         case latitude
         case longitude
         case week
@@ -156,6 +161,7 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         confidence = try container.decode(Float.self, forKey: .confidence)
         detectedAt = try container.decode(Date.self, forKey: .detectedAt)
         clipURL = try container.decodeIfPresent(URL.self, forKey: .clipURL)
+        photoURL = try container.decodeIfPresent(URL.self, forKey: .photoURL)
         latitude = try container.decodeIfPresent(Double.self, forKey: .latitude)
         longitude = try container.decodeIfPresent(Double.self, forKey: .longitude)
         week = try container.decode(Int.self, forKey: .week)

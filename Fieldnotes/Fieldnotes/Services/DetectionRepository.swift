@@ -50,7 +50,7 @@ struct DetectionRepository: Sendable {
 
     private func fetchDetections(in database: OpaquePointer) throws -> [FieldDetection] {
         let sql = """
-        SELECT id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week, location_accuracy, outing_id, model_version, is_first_of_species
+        SELECT id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week, location_accuracy, outing_id, model_version, is_first_of_species, photo_path
         FROM detections
         ORDER BY detected_at DESC
         """
@@ -152,6 +152,12 @@ struct DetectionRepository: Sendable {
             in: "detections",
             database: database
         )
+        try addColumnIfNeeded(
+            named: "photo_path",
+            definition: "TEXT",
+            in: "detections",
+            database: database
+        )
         try execute(
             "CREATE INDEX IF NOT EXISTS idx_detections_species_seen ON detections(scientific_name, detected_at)",
             in: database
@@ -169,8 +175,8 @@ struct DetectionRepository: Sendable {
     private func insert(_ detections: [FieldDetection], in database: OpaquePointer) throws {
         let sql = """
         INSERT OR REPLACE INTO detections (
-            id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week, location_accuracy, outing_id, model_version, is_first_of_species
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week, location_accuracy, outing_id, model_version, is_first_of_species, photo_path
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
@@ -218,6 +224,11 @@ struct DetectionRepository: Sendable {
                 sqlite3_bind_null(statement, 14)
             }
             sqlite3_bind_int(statement, 15, detection.isFirstOfSpecies ? 1 : 0)
+            if let photoURL = detection.photoURL {
+                sqlite3_bind_text(statement, 16, photoURL.path, -1, sqliteTransient)
+            } else {
+                sqlite3_bind_null(statement, 16)
+            }
 
             guard sqlite3_step(statement) == SQLITE_DONE else {
                 throw sqliteError(database, message: "Could not insert detection")
@@ -245,7 +256,7 @@ struct DetectionRepository: Sendable {
         if sqlite3_column_type(statement, 7) == SQLITE_NULL {
             clipURL = nil
         } else if let path = sqlite3_column_text(statement, 7).map({ String(cString: $0) }) {
-            clipURL = URL(fileURLWithPath: path)
+            clipURL = Self.resolveMediaURL(path, directory: AudioClipWriter.clipsDirectory)
         } else {
             clipURL = nil
         }
@@ -270,6 +281,15 @@ struct DetectionRepository: Sendable {
 
         let isFirstOfSpecies = sqlite3_column_int(statement, 14) != 0
 
+        let photoURL: URL?
+        if sqlite3_column_type(statement, 15) == SQLITE_NULL {
+            photoURL = nil
+        } else if let path = sqlite3_column_text(statement, 15).map({ String(cString: $0) }) {
+            photoURL = Self.resolveMediaURL(path, directory: PhotoStore.photosDirectory)
+        } else {
+            photoURL = nil
+        }
+
         return FieldDetection(
             id: id,
             scientificName: scientificName,
@@ -279,6 +299,7 @@ struct DetectionRepository: Sendable {
             confidence: Float(sqlite3_column_double(statement, 5)),
             detectedAt: detectedAt,
             clipURL: clipURL,
+            photoURL: photoURL,
             latitude: latitude,
             longitude: longitude,
             week: Int(sqlite3_column_int(statement, 10)),
@@ -317,6 +338,18 @@ struct DetectionRepository: Sendable {
             }
         }
         return columns
+    }
+
+    /// Media files live in a per-app data container whose absolute path can
+    /// change across reinstalls and OS updates. We persist absolute paths but
+    /// resolve them by filename against the current directory on read, so a
+    /// stale container path still finds the file.
+    private static func resolveMediaURL(_ storedPath: String, directory: () throws -> URL) -> URL {
+        let filename = (storedPath as NSString).lastPathComponent
+        if let directory = try? directory() {
+            return directory.appendingPathComponent(filename)
+        }
+        return URL(fileURLWithPath: storedPath)
     }
 
     private func execute(_ sql: String, in database: OpaquePointer) throws {

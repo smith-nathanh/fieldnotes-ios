@@ -136,7 +136,7 @@ struct PhotoClassifierView: View {
         }
         addingScientificName = prediction.scientificName
         Task {
-            await model.addPhotoPredictionToLog(prediction)
+            await model.addPhotoPredictionToLog(prediction, image: selectedImage)
             addedScientificNames.insert(prediction.scientificName)
             addingScientificName = nil
         }

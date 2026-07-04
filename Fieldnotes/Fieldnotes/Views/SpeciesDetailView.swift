@@ -1,5 +1,6 @@
 import FieldnotesCore
 import SwiftUI
+import UIKit
 
 struct SpeciesDetailView: View {
     @EnvironmentObject private var model: AppModel
@@ -16,7 +17,7 @@ struct SpeciesDetailView: View {
                 if summary.bestSource == .audio {
                     SignatureCallModule(clipURL: bestClipURL, isBlocked: model.isListening)
                 } else {
-                    SpecimenPlateModule(taxon: summary.taxon, similarity: bestScoreDisplay.value)
+                    SpecimenPlateModule(taxon: summary.taxon, similarity: bestScoreDisplay.value, photoURL: photoURL)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -24,10 +25,10 @@ struct SpeciesDetailView: View {
                 }
 
                 HStack(spacing: 10) {
+                    // For photo species the similarity is already shown on the
+                    // specimen plate above, so only the audio "best" chip here.
                     if summary.bestSource == .audio {
                         MetricChip(value: bestScoreDisplay.value, label: "best", valueColor: .rust)
-                    } else {
-                        SimilarityChip(value: bestScoreDisplay.value, unit: "similarity")
                     }
                     MetricChip(value: "\(summary.count)", label: "detections", valueColor: .ink)
                     if isNewLifer {
@@ -117,6 +118,10 @@ struct SpeciesDetailView: View {
         detections.first { $0.clipURL != nil }?.clipURL
     }
 
+    private var photoURL: URL? {
+        detections.first { $0.photoURL != nil }?.photoURL
+    }
+
     private var bestScoreDisplay: DetectionScoreDisplay {
         DetectionScoreDisplay(source: summary.bestSource, score: summary.bestConfidence)
     }
@@ -168,15 +173,26 @@ private struct SignatureCallModule: View {
 private struct SpecimenPlateModule: View {
     var taxon: Taxon
     var similarity: String
+    var photoURL: URL?
+
+    @State private var image: UIImage?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             PhotoFrame(categoryTag: taxon.almanacTag) {
-                ZStack {
-                    Color.paperCardAlt
-                    Image(systemName: taxon.glyph)
-                        .font(.system(size: 64, weight: .regular))
-                        .foregroundStyle(Color.ink.opacity(0.55))
+                Group {
+                    if let image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        ZStack {
+                            Color.paperCardAlt
+                            Image(systemName: taxon.glyph)
+                                .font(.system(size: 64, weight: .regular))
+                                .foregroundStyle(Color.ink.opacity(0.55))
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .aspectRatio(4 / 3, contentMode: .fit)
@@ -187,6 +203,16 @@ private struct SpecimenPlateModule: View {
                 Spacer()
             }
         }
+        .task(id: photoURL) {
+            image = Self.loadImage(photoURL)
+        }
+    }
+
+    private static func loadImage(_ url: URL?) -> UIImage? {
+        guard let url, let data = try? Data(contentsOf: url) else {
+            return nil
+        }
+        return UIImage(data: data)
     }
 }
 
