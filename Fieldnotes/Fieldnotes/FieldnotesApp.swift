@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct FieldnotesApp: App {
     @StateObject private var model = AppModel()
+    @StateObject private var placeNames = PlaceNameStore()
 
     init() {
         AlmanacFonts.registerAll()
@@ -12,6 +13,7 @@ struct FieldnotesApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(model)
+                .environmentObject(placeNames)
                 .task {
                     await model.load()
                 }

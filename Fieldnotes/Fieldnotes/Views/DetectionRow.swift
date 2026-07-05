@@ -3,6 +3,7 @@ import SwiftUI
 
 struct DetectionRow: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var placeNames: PlaceNameStore
 
     var detection: FieldDetection
 
@@ -15,11 +16,13 @@ struct DetectionRow: View {
                     .font(.serif(18, .semibold))
                     .foregroundStyle(Color.ink)
                     .lineLimit(1)
-                Text(detection.detectedAt, format: .dateTime.month().day().hour().minute())
+                Text(metadataText)
                     .font(.mono(10, .regular))
                     .tracking(.tracking(0.06, at: 10))
                     .textCase(.uppercase)
                     .foregroundStyle(Color.monoLabel)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
 
             Spacer(minLength: 8)
@@ -44,5 +47,20 @@ struct DetectionRow: View {
 
     private var scoreDisplay: DetectionScoreDisplay {
         DetectionScoreDisplay(source: detection.source, score: detection.confidence)
+    }
+
+    private var placeName: String? {
+        guard let latitude = detection.latitude, let longitude = detection.longitude else {
+            return nil
+        }
+        return placeNames.name(latitude: latitude, longitude: longitude)
+    }
+
+    private var metadataText: String {
+        let time = detection.detectedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute())
+        if let placeName {
+            return "\(time) · \(placeName)"
+        }
+        return time
     }
 }

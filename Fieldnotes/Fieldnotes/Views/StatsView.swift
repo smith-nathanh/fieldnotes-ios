@@ -120,8 +120,12 @@ struct StatsView: View {
 
         return grouped.map { key, detections in
             let speciesCount = Set(detections.map(\.scientificName)).count
+            let latitudes = detections.compactMap(\.latitude)
+            let longitudes = detections.compactMap(\.longitude)
             return FieldRegion(
                 key: key,
+                latitude: latitudes.reduce(0, +) / Double(max(1, latitudes.count)),
+                longitude: longitudes.reduce(0, +) / Double(max(1, longitudes.count)),
                 count: detections.count,
                 speciesCount: speciesCount,
                 latestSeen: detections.map(\.detectedAt).max() ?? .distantPast
@@ -300,7 +304,7 @@ private struct RegionPanel: View {
     var locatedCount: Int
 
     var body: some View {
-        StatSection(title: "Field Regions", subtitle: regionSubtitle) {
+        StatSection(title: "Places", subtitle: regionSubtitle) {
             if regions.isEmpty {
                 Text("No location-tagged detections yet")
                     .font(.serif(17))
@@ -319,23 +323,25 @@ private struct RegionPanel: View {
 
     private var regionSubtitle: String {
         if locatedCount == 0 {
-            return "approximate areas appear after location is available"
+            return "named spots appear after location is available"
         }
         return "\(locatedCount) location-tagged detections"
     }
 }
 
 private struct RegionRow: View {
+    @EnvironmentObject private var placeNames: PlaceNameStore
     var index: Int
     var region: FieldRegion
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(String(format: "Area %02d", index))
-                    .font(.mono(11, .medium))
-                    .tracking(.tracking(0.08, at: 11))
-                    .foregroundStyle(Color.rust)
+                Text(placeName)
+                    .font(.serif(18))
+                    .foregroundStyle(Color.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text(region.key.coordinateLabel)
                     .font(.mono(10, .regular))
                     .tracking(.tracking(0.04, at: 10))
@@ -347,7 +353,7 @@ private struct RegionRow: View {
             VStack(alignment: .trailing, spacing: 3) {
                 Text("\(region.count)")
                     .font(.serif(19, .semibold))
-                    .foregroundStyle(Color.ink)
+                    .foregroundStyle(Color.rust)
                 Text("\(region.speciesCount) species")
                     .font(.mono(9, .regular))
                     .tracking(.tracking(0.06, at: 9))
@@ -359,6 +365,11 @@ private struct RegionRow: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color.hairline).frame(height: 1)
         }
+    }
+
+    private var placeName: String {
+        placeNames.name(latitude: region.latitude, longitude: region.longitude)
+            ?? String(format: "Spot %02d", index)
     }
 }
 
@@ -433,6 +444,8 @@ private struct TaxonRow: Identifiable {
 private struct FieldRegion: Identifiable {
     var id: FieldRegionKey { key }
     var key: FieldRegionKey
+    var latitude: Double
+    var longitude: Double
     var count: Int
     var speciesCount: Int
     var latestSeen: Date
@@ -447,14 +460,15 @@ private struct FieldRegionKey: Hashable, Sendable {
         longitudeBucket = Self.bucket(detection.longitude ?? 0)
     }
 
+    // ~110 m grid, so distinct spots (home, the park, the field) stay separate.
     nonisolated var coordinateLabel: String {
-        let latitude = Double(latitudeBucket) / 20
-        let longitude = Double(longitudeBucket) / 20
-        return String(format: "%.2f, %.2f", latitude, longitude)
+        let latitude = Double(latitudeBucket) / 1000
+        let longitude = Double(longitudeBucket) / 1000
+        return String(format: "%.3f, %.3f", latitude, longitude)
     }
 
     private nonisolated static func bucket(_ value: Double) -> Int {
-        Int((value * 20).rounded())
+        Int((value * 1000).rounded())
     }
 }
 
