@@ -27,7 +27,10 @@ struct StatsView: View {
 
                         TaxonMixPanel(rows: taxonRows)
 
-                        RegionPanel(regions: fieldRegions, locatedCount: locatedDetections.count)
+                        RegionPanel(
+                            regions: fieldRegions,
+                            locatedDetections: locatedDetections
+                        )
                     }
                 }
                 .padding(.horizontal, AlmanacLayout.screenPadding)
@@ -301,7 +304,7 @@ private struct TaxonMixPanel: View {
 
 private struct RegionPanel: View {
     var regions: [FieldRegion]
-    var locatedCount: Int
+    var locatedDetections: [FieldDetection]
 
     var body: some View {
         StatSection(title: "Places", subtitle: regionSubtitle) {
@@ -314,7 +317,11 @@ private struct RegionPanel: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(regions.prefix(6).enumerated()), id: \.element.id) { index, region in
-                        RegionRow(index: index + 1, region: region)
+                        RegionRow(
+                            index: index + 1,
+                            region: region,
+                            detections: detections(for: region)
+                        )
                     }
                 }
             }
@@ -322,10 +329,15 @@ private struct RegionPanel: View {
     }
 
     private var regionSubtitle: String {
-        if locatedCount == 0 {
+        if locatedDetections.isEmpty {
             return "named spots appear after location is available"
         }
-        return "\(locatedCount) location-tagged detections"
+        return "\(locatedDetections.count) location-tagged detections"
+    }
+
+    private func detections(for region: FieldRegion) -> [FieldDetection] {
+        locatedDetections.filter { FieldRegionKey(detection: $0) == region.key }
+            .sorted { $0.detectedAt > $1.detectedAt }
     }
 }
 
@@ -333,47 +345,58 @@ private struct RegionRow: View {
     @EnvironmentObject private var placeNames: PlaceNameStore
     var index: Int
     var region: FieldRegion
+    var detections: [FieldDetection]
 
     @State private var isRenaming = false
     @State private var draftName = ""
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+        NavigationLink {
+            PlaceMapDetailView(
+                title: placeName,
+                coordinateLabel: region.key.coordinateLabel,
+                detections: detections
+            )
+        } label: {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(placeName)
                         .font(.serif(18))
                         .foregroundStyle(Color.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
-                    Image(systemName: "pencil")
-                        .font(.system(size: 10, weight: .regular))
-                        .foregroundStyle(Color.inkFaint)
+                    Text(region.key.coordinateLabel)
+                        .font(.mono(10, .regular))
+                        .tracking(.tracking(0.04, at: 10))
+                        .foregroundStyle(Color.monoLabel)
                 }
-                Text(region.key.coordinateLabel)
-                    .font(.mono(10, .regular))
-                    .tracking(.tracking(0.04, at: 10))
-                    .foregroundStyle(Color.monoLabel)
-            }
 
-            Spacer()
+                Spacer()
 
-            VStack(alignment: .trailing, spacing: 3) {
-                Text("\(region.count)")
-                    .font(.serif(19, .semibold))
-                    .foregroundStyle(Color.rust)
-                Text("\(region.speciesCount) species")
-                    .font(.mono(9, .regular))
-                    .tracking(.tracking(0.06, at: 9))
-                    .textCase(.uppercase)
-                    .foregroundStyle(Color.monoLabel)
+                VStack(alignment: .trailing, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("\(region.count)")
+                            .font(.serif(19, .semibold))
+                            .foregroundStyle(Color.rust)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.inkFaint)
+                    }
+                    Text("\(region.speciesCount) species")
+                        .font(.mono(9, .regular))
+                        .tracking(.tracking(0.06, at: 9))
+                        .textCase(.uppercase)
+                        .foregroundStyle(Color.monoLabel)
+                }
             }
         }
+        .buttonStyle(.plain)
         .padding(.vertical, 12)
         .contentShape(Rectangle())
-        .onTapGesture {
-            draftName = placeNames.customName(latitude: region.latitude, longitude: region.longitude) ?? ""
-            isRenaming = true
+        .contextMenu {
+            Button("Rename place") {
+                startRenaming()
+            }
         }
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color.hairline).frame(height: 1)
@@ -389,9 +412,89 @@ private struct RegionRow: View {
         }
     }
 
+    private func startRenaming() {
+        draftName = placeNames.customName(latitude: region.latitude, longitude: region.longitude) ?? ""
+        isRenaming = true
+    }
+
     private var placeName: String {
         placeNames.name(latitude: region.latitude, longitude: region.longitude)
             ?? String(format: "Spot %02d", index)
+    }
+}
+
+private struct PlaceMapDetailView: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    var title: String
+    var coordinateLabel: String
+    var detections: [FieldDetection]
+
+    @State private var mapSelection: SpeciesSummary?
+    @State private var showMapSelection = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            navRow
+                .padding(.horizontal, AlmanacLayout.screenPadding)
+                .padding(.top, 8)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Masthead(title: title, eyebrow: "Place", subtitle: coordinateLabel, titleSize: 36)
+                Text("\(detections.count) detections · \(speciesCount) species".uppercased())
+                    .font(.mono(10, .regular))
+                    .tracking(.tracking(0.08, at: 10))
+                    .foregroundStyle(Color.monoLabel)
+            }
+            .padding(.horizontal, AlmanacLayout.screenPadding)
+
+            DetectionMapView(detections: detections) { scientificName in
+                if let summary = model.summaries.first(where: { $0.scientificName == scientificName }) {
+                    mapSelection = summary
+                    showMapSelection = true
+                }
+            }
+            .overlay(
+                Rectangle()
+                    .stroke(Color.ink, lineWidth: 1.5)
+            )
+        }
+        .padding(.bottom, .tabBarClearance)
+        .almanacBackground()
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationDestination(isPresented: $showMapSelection) {
+            if let mapSelection {
+                SpeciesDetailView(summary: mapSelection)
+            }
+        }
+    }
+
+    private var navRow: some View {
+        HStack {
+            Button {
+                dismiss()
+            } label: {
+                Text("‹")
+                    .font(.serif(30, .regular))
+                    .foregroundStyle(Color.rust)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Eyebrow("Mapped Detections", color: .inkSoft)
+
+            Spacer()
+
+            Image(systemName: "map")
+                .font(.system(size: 17, weight: .regular))
+                .foregroundStyle(Color.rust)
+                .opacity(0)
+        }
+    }
+
+    private var speciesCount: Int {
+        Set(detections.map(\.scientificName)).count
     }
 }
 
