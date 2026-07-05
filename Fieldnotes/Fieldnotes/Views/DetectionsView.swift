@@ -3,8 +3,11 @@ import SwiftUI
 
 struct DetectionsView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var placeNames: PlaceNameStore
     @State private var logMode: LogMode = .species
     @State private var sortMode: LogSortMode = .recent
+    @State private var placeFilterKey: String?
+    @State private var outingFilter: Outing?
     @State private var mapSelection: SpeciesSummary?
     @State private var showMapSelection = false
 
@@ -85,11 +88,18 @@ struct DetectionsView: View {
             selection: $sortMode
         )
 
+        if !placeOptions.isEmpty || !model.outings.isEmpty {
+            filterChips
+        }
+
+        let summaries = displayedSummaries
         if model.summaries.isEmpty {
             AlmanacEmpty("No species logged", message: "detections you save appear here")
+        } else if summaries.isEmpty {
+            AlmanacEmpty("No species here", message: "nothing matches this filter")
         } else {
             LazyVStack(spacing: 0) {
-                ForEach(Array(sortedSummaries.enumerated()), id: \.element.id) { index, summary in
+                ForEach(Array(summaries.enumerated()), id: \.element.id) { index, summary in
                     NavigationLink {
                         SpeciesDetailView(summary: summary)
                     } label: {
@@ -99,6 +109,82 @@ struct DetectionsView: View {
                 }
             }
         }
+    }
+
+    private var filterChips: some View {
+        HStack(spacing: 8) {
+            if !placeOptions.isEmpty {
+                Menu {
+                    Button("All places") { placeFilterKey = nil }
+                    ForEach(placeOptions) { option in
+                        Button(option.name) { placeFilterKey = option.key }
+                    }
+                } label: {
+                    FilterChipLabel(icon: "mappin", text: placeFilterText, active: placeFilterKey != nil)
+                }
+            }
+            if !model.outings.isEmpty {
+                Menu {
+                    Button("All outings") { outingFilter = nil }
+                    ForEach(model.outings) { outing in
+                        Button(Self.outingLabel(outing)) { outingFilter = outing }
+                    }
+                } label: {
+                    FilterChipLabel(
+                        icon: "clock",
+                        text: outingFilter.map(Self.outingLabel) ?? "All outings",
+                        active: outingFilter != nil
+                    )
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var displayedSummaries: [SpeciesSummary] {
+        let base: [SpeciesSummary]
+        if placeFilterKey == nil && outingFilter == nil {
+            base = model.summaries
+        } else {
+            let filtered = model.detections.filter { detection in
+                (outingFilter == nil || detection.outingId == outingFilter?.id) &&
+                (placeFilterKey == nil || Self.placeKey(detection) == placeFilterKey)
+            }
+            base = DetectionStore(detections: filtered).summaries()
+        }
+        return sorted(base)
+    }
+
+    private var placeOptions: [PlaceOption] {
+        let located = model.detections.filter { $0.latitude != nil && $0.longitude != nil }
+        let grouped = Dictionary(grouping: located) { Self.placeKey($0) ?? "" }
+        return grouped.compactMap { key, detections -> PlaceOption? in
+            guard let detection = detections.first,
+                  let latitude = detection.latitude,
+                  let longitude = detection.longitude else {
+                return nil
+            }
+            return PlaceOption(key: key, name: placeNames.name(latitude: latitude, longitude: longitude) ?? key)
+        }
+        .sorted { $0.name < $1.name }
+    }
+
+    private var placeFilterText: String {
+        guard let placeFilterKey else {
+            return "All places"
+        }
+        return placeOptions.first { $0.key == placeFilterKey }?.name ?? "All places"
+    }
+
+    static func placeKey(_ detection: FieldDetection) -> String? {
+        guard let latitude = detection.latitude, let longitude = detection.longitude else {
+            return nil
+        }
+        return String(format: "%.3f,%.3f", latitude, longitude)
+    }
+
+    static func outingLabel(_ outing: Outing) -> String {
+        outing.startedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute())
     }
 
     @ViewBuilder
@@ -119,23 +205,58 @@ struct DetectionsView: View {
         }
     }
 
-    private var sortedSummaries: [SpeciesSummary] {
+    private func sorted(_ summaries: [SpeciesSummary]) -> [SpeciesSummary] {
         switch sortMode {
         case .recent:
-            return model.summaries.sorted {
+            return summaries.sorted {
                 if $0.lastSeen == $1.lastSeen {
                     return $0.commonName < $1.commonName
                 }
                 return $0.lastSeen > $1.lastSeen
             }
         case .name:
-            return model.summaries.sorted { $0.commonName < $1.commonName }
+            return summaries.sorted { $0.commonName < $1.commonName }
         case .count:
-            return model.summaries.sorted {
+            return summaries.sorted {
                 if $0.count == $1.count {
                     return $0.commonName < $1.commonName
                 }
                 return $0.count > $1.count
+            }
+        }
+    }
+}
+
+private struct PlaceOption: Identifiable, Equatable {
+    var key: String
+    var name: String
+    var id: String { key }
+}
+
+private struct FilterChipLabel: View {
+    var icon: String
+    var text: String
+    var active: Bool
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .medium))
+            Text(text.uppercased())
+                .font(.mono(10, .medium))
+                .tracking(.tracking(0.08, at: 10))
+                .lineLimit(1)
+            Image(systemName: "chevron.down")
+                .font(.system(size: 8, weight: .semibold))
+        }
+        .foregroundStyle(active ? Color.paper : Color.segInactive)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background {
+            if active {
+                Capsule().fill(Color.ink)
+            } else {
+                Capsule().stroke(Color.lineWarm, lineWidth: 1)
             }
         }
     }
