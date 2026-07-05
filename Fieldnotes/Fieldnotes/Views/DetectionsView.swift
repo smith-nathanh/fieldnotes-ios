@@ -5,32 +5,77 @@ struct DetectionsView: View {
     @EnvironmentObject private var model: AppModel
     @State private var logMode: LogMode = .species
     @State private var sortMode: LogSortMode = .recent
+    @State private var mapSelection: SpeciesSummary?
+    @State private var showMapSelection = false
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    Masthead(title: "Log", eyebrow: "A Naturalist's Record")
-
-                    AlmanacSegmentedControl(
-                        options: LogMode.allCases.map { ($0, $0.title) },
-                        selection: $logMode
-                    )
-
-                    switch logMode {
-                    case .species:
-                        speciesContent
-                    case .outings:
-                        outingsContent
+            Group {
+                if logMode == .map {
+                    VStack(spacing: 0) {
+                        header
+                            .padding(.horizontal, AlmanacLayout.screenPadding)
+                            .padding(.top, 8)
+                            .padding(.bottom, 18)
+                        mapContent
+                    }
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 22) {
+                            header
+                            if logMode == .species {
+                                speciesContent
+                            } else {
+                                outingsContent
+                            }
+                        }
+                        .padding(.horizontal, AlmanacLayout.screenPadding)
+                        .padding(.top, 8)
+                        .padding(.bottom, .tabBarClearance)
                     }
                 }
-                .padding(.horizontal, AlmanacLayout.screenPadding)
-                .padding(.top, 8)
-                .padding(.bottom, .tabBarClearance)
             }
             .almanacBackground()
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(isPresented: $showMapSelection) {
+                if let mapSelection {
+                    SpeciesDetailView(summary: mapSelection)
+                }
+            }
         }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            Masthead(title: "Log", eyebrow: "A Naturalist's Record")
+            AlmanacSegmentedControl(
+                options: LogMode.allCases.map { ($0, $0.title) },
+                selection: $logMode
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var mapContent: some View {
+        if locatedDetections.isEmpty {
+            VStack(spacing: 0) {
+                AlmanacEmpty("No mapped detections", message: "detections with a location appear here")
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, AlmanacLayout.screenPadding)
+        } else {
+            DetectionMapView(detections: locatedDetections) { scientificName in
+                if let summary = model.summaries.first(where: { $0.scientificName == scientificName }) {
+                    mapSelection = summary
+                    showMapSelection = true
+                }
+            }
+            .padding(.bottom, 72)
+        }
+    }
+
+    private var locatedDetections: [FieldDetection] {
+        model.detections.filter { $0.latitude != nil && $0.longitude != nil }
     }
 
     @ViewBuilder
@@ -99,6 +144,7 @@ struct DetectionsView: View {
 private enum LogMode: String, CaseIterable, Identifiable {
     case species
     case outings
+    case map
 
     var id: String { rawValue }
 
@@ -108,6 +154,8 @@ private enum LogMode: String, CaseIterable, Identifiable {
             return "Species"
         case .outings:
             return "Outings"
+        case .map:
+            return "Map"
         }
     }
 }
