@@ -334,14 +334,22 @@ private struct RegionRow: View {
     var index: Int
     var region: FieldRegion
 
+    @State private var isRenaming = false
+    @State private var draftName = ""
+
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(placeName)
-                    .font(.serif(18))
-                    .foregroundStyle(Color.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                HStack(spacing: 6) {
+                    Text(placeName)
+                        .font(.serif(18))
+                        .foregroundStyle(Color.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Image(systemName: "pencil")
+                        .font(.system(size: 10, weight: .regular))
+                        .foregroundStyle(Color.inkFaint)
+                }
                 Text(region.key.coordinateLabel)
                     .font(.mono(10, .regular))
                     .tracking(.tracking(0.04, at: 10))
@@ -362,8 +370,22 @@ private struct RegionRow: View {
             }
         }
         .padding(.vertical, 12)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            draftName = placeNames.customName(latitude: region.latitude, longitude: region.longitude) ?? ""
+            isRenaming = true
+        }
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color.hairline).frame(height: 1)
+        }
+        .alert("Rename place", isPresented: $isRenaming) {
+            TextField("Place name", text: $draftName)
+            Button("Save") {
+                placeNames.setCustomName(draftName, latitude: region.latitude, longitude: region.longitude)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Give this spot your own name (e.g. \u{201C}Home\u{201D}). Leave blank to use the geocoded name.")
         }
     }
 
