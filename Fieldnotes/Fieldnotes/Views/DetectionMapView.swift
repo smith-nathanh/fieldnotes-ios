@@ -27,6 +27,9 @@ final class DetectionAnnotation: NSObject, MKAnnotation {
 /// cluster zooms in.
 struct DetectionMapView: UIViewRepresentable {
     var detections: [FieldDetection]
+    /// When false the map is a static thumbnail (no gestures) — safe to embed
+    /// inside a scroll view.
+    var isInteractive: Bool = true
     var onSelectSpecies: (String) -> Void
 
     private static let detReuseID = "detection"
@@ -35,7 +38,8 @@ struct DetectionMapView: UIViewRepresentable {
         let map = MKMapView()
         map.delegate = context.coordinator
         map.pointOfInterestFilter = .excludingAll
-        map.showsUserLocation = true
+        map.showsUserLocation = isInteractive
+        map.isUserInteractionEnabled = isInteractive
         // Suppress Apple's own tappable map features so only our pins are interactive.
         if #available(iOS 16.0, *) {
             map.selectableMapFeatures = []

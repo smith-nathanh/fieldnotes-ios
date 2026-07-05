@@ -44,6 +44,19 @@ struct SpeciesDetailView: View {
                         DetectionRow(detection: detection)
                     }
                 }
+
+                if !locatedDetections.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Eyebrow("Where Heard")
+                        DetectionMapView(detections: locatedDetections, isInteractive: false) { _ in }
+                            .frame(height: 200)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(Color.ink, lineWidth: 1.5)
+                            )
+                    }
+                }
             }
             .padding(.horizontal, AlmanacLayout.screenPadding)
             .padding(.top, 8)
@@ -112,6 +125,10 @@ struct SpeciesDetailView: View {
 
     private var detections: [FieldDetection] {
         model.detections(for: summary)
+    }
+
+    private var locatedDetections: [FieldDetection] {
+        detections.filter { $0.latitude != nil && $0.longitude != nil }
     }
 
     private var bestClipURL: URL? {
