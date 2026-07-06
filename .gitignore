@@ -24,4 +24,5 @@ Fieldnotes/Pods/
 /Resources/
 
 # Generated BioCAP iOS spike assets; regenerate with tools/biocap/export_ios_assets.py.
-/Fieldnotes/Fieldnotes/Resources/BioCAP/
+/Fieldnotes/Fieldnotes/Resources/BioCAP/*
+!/Fieldnotes/Fieldnotes/Resources/BioCAP/README.md
