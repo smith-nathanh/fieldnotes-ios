@@ -1,4 +1,12 @@
-# Fieldnotes
+<p align="center">
+  <img src="Fieldnotes/Fieldnotes/Assets.xcassets/AppIcon.appiconset/Fieldnotes-AppIcon-1024.png" width="104" alt="Fieldnotes app icon">
+</p>
+
+<h1 align="center">Fieldnotes</h1>
+
+<p align="center">
+  On-device audio and image classification for wildlife using BirdNET v2.4 and BioCAP embeddings.
+</p>
 
 Fieldnotes is a native iPhone app designed for on-device audio and image
 classification of wildlife species. It listens for nearby calls, identifies
