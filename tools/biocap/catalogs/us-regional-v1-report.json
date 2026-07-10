@@ -1,0 +1,69 @@
+{
+  "catalogVersion": "us-regional-v1",
+  "strategy": "One deduplicated United States animal catalog with 50-state plus District of Columbia observation membership and nine broad product regions",
+  "cutoffDate": "2026-06-30",
+  "requirePhotos": true,
+  "speciesCount": 52762,
+  "uniqueINaturalistTaxonIDs": 52762,
+  "catalogDefinitionSHA256": "7a5427b4b7285438e192a0874828a87775346b0ff3c8c02b71c921e24713f299",
+  "generatedSpeciesJSONLSHA256": "c1bb066d31ba9a4635a6f609cecce831e1fb0f643849ce5192a1bf9bf36ba785",
+  "sourceJSONLBytes": 35559460,
+  "commonNameCoverage": 24092,
+  "commonNameCoverageRate": 0.4566165043023388,
+  "geography": {
+    "membershipPlaces": 51,
+    "membershipAssignments": 335029,
+    "speciesWithoutMembershipArea": 0,
+    "regions": {
+      "alaska": 3120,
+      "hawaii": 3765,
+      "midwest": 14915,
+      "mountain-west": 9711,
+      "northeast": 15770,
+      "pacific": 17308,
+      "south-central": 17471,
+      "southeast": 21244,
+      "southwest": 10058
+    }
+  },
+  "taxonomyReconciliation": {
+    "membershipOnlyTaxa": 5,
+    "validatedSpeciesIDs": 52767,
+    "inactiveRowsReplaced": 5,
+    "retainedObsoleteNamesAsSynonyms": 5,
+    "duplicateScientificNames": 0
+  },
+  "productTaxa": {
+    "amphibian": 349,
+    "animal": 3164,
+    "arachnid": 2434,
+    "bird": 1164,
+    "crustacean": 1809,
+    "fish": 2518,
+    "insect": 36390,
+    "mammal": 497,
+    "mollusk": 3947,
+    "reptile": 490
+  },
+  "missingCanonicalRanks": {
+    "kingdom": 0,
+    "phylum": 0,
+    "class": 149,
+    "order": 589,
+    "family": 18,
+    "genus": 10,
+    "species": 0
+  },
+  "estimatedEmbeddingBytes": {
+    "float32": 108056576,
+    "float16": 54028288,
+    "int8BeforeScales": 27014144
+  },
+  "limitations": [
+    "State and region membership reflects research-grade iNaturalist observations with photos, not a hard biological range boundary.",
+    "A one-observation minimum intentionally retains rare, introduced, and vagrant species; geography must be used only as a soft ranking signal.",
+    "The nine product regions are friendly UI groupings over state membership, not ecological regions.",
+    "Territories are deferred from the first membership definition rather than silently assigned to a mainland region.",
+    "Embedding generation, float16 parity, expanded-catalog accuracy, and iPhone performance remain separate promotion gates."
+  ]
+}

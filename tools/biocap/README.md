@@ -109,6 +109,56 @@ cutoff, research-grade observations, and all animal iconic taxa. API pages and
 taxonomy batches are cached under ignored `tmp/` paths. The checked-in audit is
 `catalogs/nc-regional-v1-report.json`.
 
+Build the U.S.-wide regional source catalog:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/build_inaturalist_regional_catalog.py \
+  --definition tools/biocap/catalogs/us-regional-v1.json \
+  --output tmp/biocap-catalogs/us-regional-v1/species.jsonl \
+  --report tmp/biocap-catalogs/us-regional-v1/report.json \
+  --cache-dir tmp/biocap-catalogs/inaturalist-us-cache
+```
+
+`us-regional-v1` uses the United States parent place, requires research-grade
+observations with photos, and freezes a 2026-06-30 cutoff. It stores every
+species once, then joins observation membership for the 50 states and District
+of Columbia onto that row. The state records are grouped into nine plain-language
+areas for product use: Northeast, Southeast, Midwest, South Central, Southwest,
+Mountain West, Pacific, Alaska, and Hawaii. Territories are deliberately deferred
+rather than being silently assigned to an incorrect area.
+
+State and area membership are ranking context, not separate catalogs and not a
+hard range boundary. Future iOS export should encode the membership compactly;
+there must still be exactly one text embedding per scientific name. A quick
+source/taxonomy smoke test can skip the membership crawl:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/build_inaturalist_regional_catalog.py \
+  --definition tools/biocap/catalogs/us-regional-v1.json \
+  --output tmp/biocap-catalogs/us-regional-v1-smoke/species.jsonl \
+  --report tmp/biocap-catalogs/us-regional-v1-smoke/report.json \
+  --cache-dir tmp/biocap-catalogs/inaturalist-us-cache \
+  --max-pages 1 \
+  --skip-memberships \
+  --sleep-seconds 0
+```
+
+All API pages and taxonomy batches are cached. Re-running the full command after
+an interruption resumes from those files and still rebuilds the final catalog
+deterministically.
+
+The completed source build contains 52,762 active species and the same number of
+unique iNaturalist taxon IDs. It records 335,029 state memberships with no species
+left outside the 50-state/D.C. membership set. A final current-taxonomy pass
+replaced five obsolete rows discovered during the long paged crawl and retained
+their former names as synonyms. The checked-in compact audit is
+`catalogs/us-regional-v1-report.json`; the 35,559,460-byte source JSONL remains
+under ignored `tmp/` paths and is pinned by SHA-256 in that report.
+
+At 512 dimensions, the full matrix is projected to use 108,056,576 bytes as
+float32 or 54,028,288 bytes as float16. These are projections only. Float16 must
+preserve ranking parity before the U.S. catalog can replace production assets.
+
 To build the optional travel tier, first enrich missing hierarchy in the older
 global species list, then merge only BirdNET-linked rows that have validated
 taxonomy:
