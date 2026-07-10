@@ -159,6 +159,46 @@ At 512 dimensions, the full matrix is projected to use 108,056,576 bytes as
 float32 or 54,028,288 bytes as float16. These are projections only. Float16 must
 preserve ranking parity before the U.S. catalog can replace production assets.
 
+### Local U.S. catalog storage
+
+The full command above pulls data directly from iNaturalist's
+`observations/species_counts` API for the United States parent place and each of
+the 50 states plus District of Columbia. It then uses the iNaturalist `taxa` API
+to resolve hierarchy and take a final current-taxonomy snapshot. Responses are
+JSON files under `tmp/biocap-catalogs/inaturalist-us-cache/`; this directory is
+ignored by Git and is never included in the app bundle.
+
+The completed 2026-07-10 build used approximately:
+
+```text
+491 MB  inaturalist-us-cache/species-counts
+1.0 GB  inaturalist-us-cache/taxa
+1.4 GB  inaturalist-us-cache/species-validation
+2.9 GB  inaturalist-us-cache total
+ 34 MB  us-regional-v1 generated source catalog
+3.8 GB  tmp/biocap-catalogs total, including older NC working data
+```
+
+Check the current footprint with:
+
+```sh
+du -sh tmp/biocap-catalogs/inaturalist-us-cache/*
+du -sh tmp/biocap-catalogs/inaturalist-us-cache \
+  tmp/biocap-catalogs/us-regional-v1 \
+  tmp/biocap-catalogs
+```
+
+Embedding generation needs
+`tmp/biocap-catalogs/us-regional-v1/species.jsonl`, not the 2.9 GB API cache.
+Keep the cache until the source catalog is backed up and embedding generation is
+complete, because it makes audits and rebuilds fast. After that, it is safe to
+reclaim the cache space with the following command; a future source rebuild will
+simply download the API pages again:
+
+```sh
+rm -rf tmp/biocap-catalogs/inaturalist-us-cache
+```
+
 To build the optional travel tier, first enrich missing hierarchy in the older
 global species list, then merge only BirdNET-linked rows that have validated
 taxonomy:
