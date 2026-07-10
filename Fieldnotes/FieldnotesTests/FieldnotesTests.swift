@@ -238,6 +238,61 @@ final class FieldnotesTests: XCTestCase {
         XCTAssertEqual(components.day, 2)
     }
 
+    func testPhotoCropGeometryCentersTheLargestSquare() {
+        let crop = PhotoCropGeometry.squareCrop(imageSize: CGSize(width: 400, height: 200))
+
+        XCTAssertEqual(crop.minX, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(crop.minY, 0, accuracy: 0.0001)
+        XCTAssertEqual(crop.width, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(crop.height, 1, accuracy: 0.0001)
+    }
+
+    func testPhotoCropGeometryFramesAnOffCenterSubjectInsideBounds() {
+        let subject = CGRect(x: 0.70, y: 0.20, width: 0.10, height: 0.20)
+        let imageSize = CGSize(width: 400, height: 200)
+
+        let crop = PhotoCropGeometry.squareCrop(around: subject, imageSize: imageSize)
+
+        XCTAssertGreaterThanOrEqual(crop.minX, 0)
+        XCTAssertGreaterThanOrEqual(crop.minY, 0)
+        XCTAssertLessThanOrEqual(crop.maxX, 1)
+        XCTAssertLessThanOrEqual(crop.maxY, 1)
+        XCTAssertTrue(crop.contains(CGPoint(x: subject.midX, y: subject.midY)))
+        XCTAssertEqual(crop.width * imageSize.width, crop.height * imageSize.height, accuracy: 0.001)
+    }
+
+    func testPhotoCropProducesSquareImage() throws {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 200)).image { context in
+            UIColor.orange.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 400, height: 200))
+        }
+        let crop = PhotoCropGeometry.squareCrop(imageSize: image.size)
+
+        let cropped = try XCTUnwrap(image.cropped(toNormalizedRect: crop))
+
+        XCTAssertEqual(cropped.size.width, cropped.size.height, accuracy: 0.001)
+        XCTAssertEqual(cropped.size.width, 200, accuracy: 0.001)
+    }
+
+    func testPhotoSubjectSuggestionReturnsValidSquareForFixture() async throws {
+        let (image, _) = try loadBioCAPFixture()
+
+        let suggestion = await PhotoSubjectCropper.suggestedCrop(for: image)
+        let rect = suggestion.rect
+
+        XCTAssertGreaterThan(rect.width, 0)
+        XCTAssertGreaterThan(rect.height, 0)
+        XCTAssertGreaterThanOrEqual(rect.minX, 0)
+        XCTAssertGreaterThanOrEqual(rect.minY, 0)
+        XCTAssertLessThanOrEqual(rect.maxX, 1)
+        XCTAssertLessThanOrEqual(rect.maxY, 1)
+        XCTAssertEqual(
+            rect.width * image.size.width,
+            rect.height * image.size.height,
+            accuracy: 0.01
+        )
+    }
+
     private func photoPrediction(
         name: String,
         similarity: Float,

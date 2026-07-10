@@ -11,11 +11,13 @@ struct PhotoClassifierView: View {
     @State private var predictions: [BioCAPPhotoPrediction] = []
     @State private var classificationResult: BioCAPClassificationResult?
     @State private var classificationContext: BioCAPPhotoContext?
+    @State private var cropRequest: PhotoCropRequest?
     @State private var status: PhotoClassificationStatus = .idle
     @State private var elapsedSeconds: TimeInterval?
     @State private var isShowingCamera = false
     @State private var addedScientificNames: Set<String> = []
     @State private var addingScientificName: String?
+    @State private var pendingLogPrediction: BioCAPPhotoPrediction?
     @State private var assetSummary: BioCAPAssetSummary?
     @State private var classificationService = BioCAPImageClassificationService()
 
@@ -51,7 +53,7 @@ struct PhotoClassifierView: View {
             .toolbar(.hidden, for: .navigationBar)
             .onChange(of: selectedItem) { _, item in
                 guard let item else { return }
-                classify(item)
+                prepareCrop(item)
             }
             .task {
                 loadAssetSummary()
@@ -62,20 +64,44 @@ struct PhotoClassifierView: View {
             }
             .fullScreenCover(isPresented: $isShowingCamera) {
                 CameraCaptureView { image in
-                    classify(image)
+                    prepareCrop(image)
                 }
+            }
+            .fullScreenCover(item: $cropRequest) { request in
+                PhotoCropView(request: request) { image, context in
+                    classifyCroppedImage(image, context: context)
+                }
+            }
+            .confirmationDialog(
+                pendingLogPrediction.map { "Add \($0.commonName) to your log?" }
+                    ?? "Add identification to your log?",
+                isPresented: Binding(
+                    get: { pendingLogPrediction != nil },
+                    set: { if !$0 { pendingLogPrediction = nil } }
+                ),
+                presenting: pendingLogPrediction
+            ) { prediction in
+                Button("Add \(prediction.commonName)") {
+                    confirmAddToLog(prediction)
+                }
+                Button("Cancel", role: .cancel) {
+                    pendingLogPrediction = nil
+                }
+            } message: { prediction in
+                Text("Confirming \(prediction.scientificName) will save this photo identification.")
             }
         }
     }
 
-    private func classify(_ item: PhotosPickerItem) {
-        status = .classifying
+    private func prepareCrop(_ item: PhotosPickerItem) {
+        status = .preparing
         predictions = []
         classificationResult = nil
         classificationContext = nil
         elapsedSeconds = nil
         addedScientificNames = []
         addingScientificName = nil
+        pendingLogPrediction = nil
 
         Task {
             do {
@@ -85,48 +111,56 @@ struct PhotoClassifierView: View {
                 }
 
                 let classificationImage = previewImage.normalizedForPhotoClassification()
-                guard let classificationData = classificationImage.jpegData(compressionQuality: 0.95) else {
-                    throw PhotoClassificationError.unreadableImage
-                }
-
-                selectedImage = classificationImage
                 let context = model.photoClassificationContext(
                     at: data.embeddedCaptureDate ?? Date(),
                     photoCoordinate: data.embeddedCoordinate
                 )
-                classificationContext = context
-                let result = try await classify(classificationData, context: context)
-
-                classificationResult = result.0
-                predictions = result.0.predictions
-                elapsedSeconds = result.1
-                status = .ready
+                cropRequest = PhotoCropRequest(image: classificationImage, context: context)
+                status = .idle
             } catch {
                 status = .failed(error.localizedDescription)
             }
         }
     }
 
-    private func classify(_ image: UIImage) {
+    private func prepareCrop(_ image: UIImage) {
         let classificationImage = image.normalizedForPhotoClassification()
-        selectedImage = classificationImage
-        status = .classifying
+        status = .preparing
         predictions = []
         classificationResult = nil
         classificationContext = nil
         elapsedSeconds = nil
         addedScientificNames = []
         addingScientificName = nil
+        pendingLogPrediction = nil
+
+        let context = model.photoClassificationContext()
+        Task {
+            // Let UIImagePickerController finish dismissing before presenting
+            // the crop editor from the same screen.
+            try? await Task.sleep(for: .milliseconds(300))
+            cropRequest = PhotoCropRequest(image: classificationImage, context: context)
+            status = .idle
+        }
+    }
+
+    private func classifyCroppedImage(_ image: UIImage, context: BioCAPPhotoContext) {
+        selectedImage = image
+        status = .classifying
+        predictions = []
+        classificationResult = nil
+        classificationContext = context
+        elapsedSeconds = nil
+        addedScientificNames = []
+        addingScientificName = nil
+        pendingLogPrediction = nil
 
         Task {
             do {
-                guard let data = classificationImage.jpegData(compressionQuality: 0.95) else {
+                guard let data = image.jpegData(compressionQuality: 0.95) else {
                     throw PhotoClassificationError.unreadableImage
                 }
-                let context = model.photoClassificationContext()
-                classificationContext = context
                 let result = try await classify(data, context: context)
-
                 classificationResult = result.0
                 predictions = result.0.predictions
                 elapsedSeconds = result.1
@@ -151,12 +185,15 @@ struct PhotoClassifierView: View {
     }
 
     private func addToLog(_ prediction: BioCAPPhotoPrediction) {
-        guard classificationResult?.exactPrediction?.scientificName == prediction.scientificName else {
-            return
-        }
         guard addingScientificName == nil else {
             return
         }
+        pendingLogPrediction = prediction
+    }
+
+    private func confirmAddToLog(_ prediction: BioCAPPhotoPrediction) {
+        guard addingScientificName == nil else { return }
+        pendingLogPrediction = nil
         addingScientificName = prediction.scientificName
         Task {
             await model.addPhotoPredictionToLog(
@@ -226,12 +263,16 @@ private extension UIImage {
 
 private enum PhotoClassificationStatus: Equatable {
     case idle
+    case preparing
     case classifying
     case ready
     case failed(String)
 
     var isClassifying: Bool {
         if case .classifying = self {
+            return true
+        }
+        if case .preparing = self {
             return true
         }
         return false
@@ -317,6 +358,16 @@ private struct PhotoResultsPanel: View {
             switch status {
             case .idle:
                 AlmanacEmpty("Choose a photo", message: "top matches from the local image model")
+            case .preparing:
+                HStack(spacing: 12) {
+                    ProgressView()
+                        .tint(Color.rust)
+                    Text("Preparing crop")
+                        .font(.serif(16))
+                        .foregroundStyle(Color.inkSoft)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, minHeight: 140)
             case .classifying:
                 HStack(spacing: 12) {
                     ProgressView()
@@ -340,7 +391,6 @@ private struct PhotoResultsPanel: View {
                             isAdded: addedScientificNames.contains(prediction.scientificName),
                             isAdding: addingScientificName == prediction.scientificName,
                             isAddDisabled: addingScientificName != nil,
-                            isExactLoggingAllowed: classificationResult?.exactPrediction?.scientificName == prediction.scientificName,
                             onAddToLog: { onAddToLog(prediction) }
                         )
                     }
@@ -392,9 +442,9 @@ private struct PhotoIdentificationSummary: View {
         case .species:
             return "This match is clearly ahead of the other suggestions."
         case .genus, .family:
-            return "The suggestions are closely related, so compare the details below."
+            return "The suggestions are closely related. Add the one you recognize."
         case .uncertain:
-            return "The photo is a close call. Compare the suggestions or try a tighter crop."
+            return "Compare the suggestions, add the one you recognize, or try a tighter crop."
         }
     }
 }
@@ -420,7 +470,6 @@ private struct PhotoPredictionRow: View {
     var isAdded: Bool
     var isAdding: Bool
     var isAddDisabled: Bool
-    var isExactLoggingAllowed: Bool
     var onAddToLog: () -> Void
 
     var body: some View {
@@ -444,9 +493,7 @@ private struct PhotoPredictionRow: View {
                 Text("\(prediction.similarity.formatted(.number.precision(.fractionLength(3)))) similarity")
                     .font(.serif(19, .semibold))
                     .foregroundStyle(rank == 1 ? Color.ink : Color.inkSoft)
-                if isExactLoggingAllowed || isAdded || isAdding {
-                    addButton
-                }
+                addButton
             }
         }
         .padding(.vertical, 12)
@@ -470,12 +517,12 @@ private struct PhotoPredictionRow: View {
             .background(Capsule().fill(addFill))
         }
         .buttonStyle(.plain)
-        .disabled(isAdded || isAddDisabled || !isExactLoggingAllowed)
+        .disabled(isAdded || isAddDisabled)
     }
 
     private var addForeground: Color {
         if isAdded { return .inkSoft }
-        if isAddDisabled || !isExactLoggingAllowed { return .inkFaint }
+        if isAddDisabled { return .inkFaint }
         return .rust
     }
 
