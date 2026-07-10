@@ -52,6 +52,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--output", type=Path, help="Optional long-form rankings CSV path.")
     parser.add_argument("--report", type=Path, help="Optional benchmark report JSON path.")
+    parser.add_argument(
+        "--query-embeddings-output",
+        type=Path,
+        help=(
+            "Optional NPZ path for the normalized image embeddings, in benchmark "
+            "case order, for float16 ranking-parity analysis."
+        ),
+    )
     parser.add_argument("--top-k", type=int, default=10)
     parser.add_argument(
         "--device",
@@ -289,10 +297,12 @@ def main() -> None:
 
     result_rows: list[dict[str, object]] = []
     csv_rows: list[dict[str, object]] = []
+    image_embeddings: list[np.ndarray] = []
     for index, case in enumerate(cases, start=1):
         image_path = Path(case["path"])
         encode_started = time.perf_counter()
         image_embedding = encode_image(model, preprocess, image_path, device).numpy()
+        image_embeddings.append(np.asarray(image_embedding, dtype=np.float32))
         encode_ms = (time.perf_counter() - encode_started) * 1000
         score_started = time.perf_counter()
         scores = text_matrix @ image_embedding
@@ -382,6 +392,14 @@ def main() -> None:
 
     if args.output:
         write_csv(args.output, csv_rows)
+    if args.query_embeddings_output:
+        args.query_embeddings_output.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(
+            args.query_embeddings_output,
+            embeddings=np.stack(image_embeddings),
+            image_ids=np.asarray([str(case["imageID"]) for case in cases]),
+            model_name=np.asarray([MODEL_NAME]),
+        )
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")

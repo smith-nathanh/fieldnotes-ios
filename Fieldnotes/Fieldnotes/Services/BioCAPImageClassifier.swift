@@ -3,6 +3,84 @@ import CoreML
 import Foundation
 import UIKit
 
+nonisolated enum BioCAPGeographyMode: String, CaseIterable, Sendable {
+    case automatic
+    case selectedRegion
+    case everywhere
+}
+
+nonisolated enum BioCAPUSRegion: String, CaseIterable, Sendable {
+    case northeast
+    case southeast
+    case midwest
+    case southCentral = "south-central"
+    case southwest
+    case mountainWest = "mountain-west"
+    case pacific
+    case alaska
+    case hawaii
+
+    var displayName: String {
+        switch self {
+        case .northeast: "Northeast"
+        case .southeast: "Southeast"
+        case .midwest: "Midwest"
+        case .southCentral: "South Central"
+        case .southwest: "Southwest"
+        case .mountainWest: "Mountain West"
+        case .pacific: "Pacific"
+        case .alaska: "Alaska"
+        case .hawaii: "Hawaii"
+        }
+    }
+}
+
+nonisolated struct BioCAPGeographyPreference: Equatable, Sendable {
+    var mode: BioCAPGeographyMode = .automatic
+    var regionID: String? = nil
+}
+
+nonisolated enum BioCAPUSRegionResolver {
+    /// Offline, deliberately broad region resolution for an optional soft
+    /// ranking hint. It never removes candidates, so state-line approximation
+    /// errors cannot make an unusual observation unavailable.
+    static func region(latitude: Double?, longitude: Double?) -> BioCAPUSRegion? {
+        guard let latitude, let longitude else { return nil }
+        if (50...72).contains(latitude), (-180 ... -129).contains(longitude) {
+            return .alaska
+        }
+        if (18...23).contains(latitude), (-161 ... -154).contains(longitude) {
+            return .hawaii
+        }
+        guard (24...50).contains(latitude), (-125 ... -66).contains(longitude) else {
+            return nil
+        }
+        if longitude <= -117.5
+            || (latitude < 35 && longitude <= -114.5)
+            || (latitude >= 42 && longitude <= -116.5) {
+            return .pacific
+        }
+        if longitude <= -103 {
+            return latitude < 37 ? .southwest : .mountainWest
+        }
+        if longitude <= -90.5, latitude < 37.5 {
+            return .southCentral
+        }
+        if latitude >= 39 || (longitude <= -88 && latitude >= 36.5) {
+            return longitude >= -80 ? .northeast : .midwest
+        }
+        return .southeast
+    }
+}
+
+nonisolated enum BioCAPGeographyRanking {
+    static let matchingRegionBoost: Float = 0.005
+
+    static func boost(stateMembership: UInt64, regionStateMask: UInt64) -> Float {
+        stateMembership & regionStateMask == 0 ? 0 : matchingRegionBoost
+    }
+}
+
 nonisolated struct BioCAPPhotoPrediction: Equatable, Sendable {
     var scientificName: String
     var commonName: String
@@ -25,12 +103,17 @@ nonisolated struct BioCAPPhotoContext: Equatable, Sendable {
     var longitude: Double?
     var week: Int
     var horizontalAccuracy: Double? = nil
+    var geographyPreference = BioCAPGeographyPreference()
 
-    var appliesNorthCarolinaPrior: Bool {
-        guard let latitude, let longitude else { return false }
-        // Deliberately coarse and used only as a small positive prior. It never
-        // excludes travel-tier species near a state line or on an unusual find.
-        return (33.5...36.7).contains(latitude) && (-84.4 ... -75.3).contains(longitude)
+    var preferredRegion: BioCAPUSRegion? {
+        switch geographyPreference.mode {
+        case .automatic:
+            BioCAPUSRegionResolver.region(latitude: latitude, longitude: longitude)
+        case .selectedRegion:
+            geographyPreference.regionID.flatMap(BioCAPUSRegion.init(rawValue:))
+        case .everywhere:
+            nil
+        }
     }
 }
 
@@ -46,7 +129,7 @@ nonisolated struct BioCAPClassificationResult: Equatable, Sendable {
     var suggestedRank: BioCAPSuggestedRank
     var suggestedName: String?
     var top1Top2Margin: Float?
-    var appliedNorthCarolinaPrior: Bool
+    var appliedGeographyName: String?
 
     var exactPrediction: BioCAPPhotoPrediction? {
         suggestedRank == .species ? predictions.first : nil
@@ -62,7 +145,7 @@ nonisolated enum BioCAPIdentificationPolicy {
 
     static func evaluate(
         predictions: [BioCAPPhotoPrediction],
-        appliedNorthCarolinaPrior: Bool
+        appliedGeographyName: String?
     ) -> BioCAPClassificationResult {
         let predictions = collapsedSpeciesPredictions(predictions)
         guard let first = predictions.first else {
@@ -71,7 +154,7 @@ nonisolated enum BioCAPIdentificationPolicy {
                 suggestedRank: .uncertain,
                 suggestedName: nil,
                 top1Top2Margin: nil,
-                appliedNorthCarolinaPrior: appliedNorthCarolinaPrior
+                appliedGeographyName: appliedGeographyName
             )
         }
         let margin = predictions.dropFirst().first.map {
@@ -83,7 +166,7 @@ nonisolated enum BioCAPIdentificationPolicy {
                 suggestedRank: .species,
                 suggestedName: first.commonName,
                 top1Top2Margin: margin,
-                appliedNorthCarolinaPrior: appliedNorthCarolinaPrior
+                appliedGeographyName: appliedGeographyName
             )
         }
 
@@ -97,7 +180,7 @@ nonisolated enum BioCAPIdentificationPolicy {
                 suggestedRank: .genus,
                 suggestedName: genus,
                 top1Top2Margin: margin,
-                appliedNorthCarolinaPrior: appliedNorthCarolinaPrior
+                appliedGeographyName: appliedGeographyName
             )
         }
         let families = Set(contenders.compactMap { normalized($0.family) })
@@ -107,7 +190,7 @@ nonisolated enum BioCAPIdentificationPolicy {
                 suggestedRank: .family,
                 suggestedName: family,
                 top1Top2Margin: margin,
-                appliedNorthCarolinaPrior: appliedNorthCarolinaPrior
+                appliedGeographyName: appliedGeographyName
             )
         }
         return BioCAPClassificationResult(
@@ -115,7 +198,7 @@ nonisolated enum BioCAPIdentificationPolicy {
             suggestedRank: .uncertain,
             suggestedName: nil,
             top1Top2Margin: margin,
-            appliedNorthCarolinaPrior: appliedNorthCarolinaPrior
+            appliedGeographyName: appliedGeographyName
         )
     }
 
@@ -195,6 +278,18 @@ nonisolated struct BioCAPConfig: Decodable, Equatable {
     var promptPreset: String
     var labelTextType: String
     var promptTemplateCount: Int
+    var geography: BioCAPGeographyConfig?
+}
+
+nonisolated struct BioCAPGeographyConfig: Decodable, Equatable {
+    var stateCodes: [String]
+    var stateRegionIndices: [Int]
+    var regions: [BioCAPRegionDefinition]
+}
+
+nonisolated struct BioCAPRegionDefinition: Decodable, Equatable, Sendable {
+    var id: String
+    var displayName: String
 }
 
 nonisolated struct BioCAPAssetSummary: Equatable, Sendable {
@@ -202,6 +297,7 @@ nonisolated struct BioCAPAssetSummary: Equatable, Sendable {
     var promptPreset: String
     var promptTemplateCount: Int
     var labelTextType: String
+    var regions: [BioCAPRegionDefinition]
 }
 
 actor BioCAPImageClassificationService {
@@ -219,7 +315,7 @@ actor BioCAPImageClassificationService {
         let predictions = try classifier.classify(image, limit: limit, context: context)
         return BioCAPIdentificationPolicy.evaluate(
             predictions: predictions,
-            appliedNorthCarolinaPrior: context?.appliesNorthCarolinaPrior == true
+            appliedGeographyName: classifier.appliedGeographyName(for: context)
         )
     }
 
@@ -241,6 +337,8 @@ nonisolated final class BioCAPImageClassifier {
     private let species: [BioCAPSpeciesMetadata]
     private let config: BioCAPConfig
     private let textEmbeddings: [Float]
+    private let geographyMemberships: [UInt64]?
+    private let geographyRegionMasks: [UInt64]?
     private let embeddingOutputName: String
 
     init(
@@ -250,14 +348,25 @@ nonisolated final class BioCAPImageClassifier {
         let config = try Self.loadConfig(bundle: bundle)
         let species = try Self.loadSpecies(bundle: bundle)
         let textEmbeddings = try Self.loadEmbeddings(bundle: bundle)
+        let geographyMemberships = try Self.loadGeographyMemberships(
+            bundle: bundle,
+            config: config
+        )
         let model = try Self.loadModel(bundle: bundle, computeUnits: computeUnits)
         let embeddingOutputName = try Self.validateModelContract(model, config: config)
-        try Self.validateAssets(species: species, config: config, textEmbeddings: textEmbeddings)
+        try Self.validateAssets(
+            species: species,
+            config: config,
+            textEmbeddings: textEmbeddings,
+            geographyMemberships: geographyMemberships
+        )
 
         self.model = model
         self.species = species
         self.config = config
         self.textEmbeddings = textEmbeddings
+        self.geographyMemberships = geographyMemberships
+        self.geographyRegionMasks = Self.regionMasks(config: config.geography)
         self.embeddingOutputName = embeddingOutputName
     }
 
@@ -293,12 +402,11 @@ nonisolated final class BioCAPImageClassifier {
                 textEmbeddings[rowStart..<(rowStart + config.embeddingDim)]
             )
             let item = species[index]
-            let contextBoost: Float = if context?.appliesNorthCarolinaPrior == true,
-                                         item.catalogTier == "regional" {
-                0.005
-            } else {
-                0
-            }
+            let contextBoost = geographyBoost(
+                speciesIndex: index,
+                item: item,
+                context: context
+            )
             return BioCAPPhotoPrediction(
                 scientificName: item.scientificName,
                 commonName: item.commonName,
@@ -320,8 +428,54 @@ nonisolated final class BioCAPImageClassifier {
             speciesCount: config.speciesCount,
             promptPreset: config.promptPreset,
             promptTemplateCount: config.promptTemplateCount,
-            labelTextType: config.labelTextType
+            labelTextType: config.labelTextType,
+            regions: config.geography?.regions
+                ?? BioCAPUSRegion.allCases.map {
+                    BioCAPRegionDefinition(id: $0.rawValue, displayName: $0.displayName)
+                }
         )
+    }
+
+    func appliedGeographyName(for context: BioCAPPhotoContext?) -> String? {
+        guard let region = context?.preferredRegion else { return nil }
+        if let configuredRegion = config.geography?.regions.first(where: {
+            $0.id == region.rawValue
+        }) {
+            return configuredRegion.displayName
+        }
+        if config.geography == nil, region == .southeast {
+            return region.displayName
+        }
+        return nil
+    }
+
+    private func geographyBoost(
+        speciesIndex: Int,
+        item: BioCAPSpeciesMetadata,
+        context: BioCAPPhotoContext?
+    ) -> Float {
+        guard let region = context?.preferredRegion else { return 0 }
+        if let geographyMemberships,
+           let geographyRegionMasks,
+           let regionIndex = config.geography?.regions.firstIndex(where: {
+               $0.id == region.rawValue
+           }),
+           regionIndex < geographyRegionMasks.count,
+           geographyMemberships[speciesIndex] & geographyRegionMasks[regionIndex] != 0 {
+            return BioCAPGeographyRanking.boost(
+                stateMembership: geographyMemberships[speciesIndex],
+                regionStateMask: geographyRegionMasks[regionIndex]
+            )
+        }
+        // Compatibility for the currently shipped NC + travel bundle, which
+        // predates BioCAPGeography.bin. Other selected regions receive no
+        // artificial boost until the U.S. asset set is promoted.
+        if config.geography == nil,
+           region == .southeast,
+           item.catalogTier == "regional" {
+            return BioCAPGeographyRanking.matchingRegionBoost
+        }
+        return 0
     }
 
     private static func loadModel(bundle: Bundle, computeUnits: MLComputeUnits) throws -> MLModel {
@@ -368,6 +522,41 @@ nonisolated final class BioCAPImageClassifier {
         }
     }
 
+    private static func loadGeographyMemberships(
+        bundle: Bundle,
+        config: BioCAPConfig
+    ) throws -> [UInt64]? {
+        guard config.geography != nil else { return nil }
+        let url = try ResourceLocator.url(
+            named: "BioCAPGeography",
+            extension: "bin",
+            bundle: bundle
+        )
+        let data = try Data(contentsOf: url)
+        guard data.count.isMultiple(of: MemoryLayout<UInt64>.size) else {
+            throw BioCAPImageClassifierError.assetMismatch(
+                "BioCAP geography membership data is not aligned to UInt64 rows."
+            )
+        }
+        return data.withUnsafeBytes { rawBuffer in
+            stride(from: 0, to: rawBuffer.count, by: MemoryLayout<UInt64>.size).map {
+                UInt64(littleEndian: rawBuffer.loadUnaligned(fromByteOffset: $0, as: UInt64.self))
+            }
+        }
+    }
+
+    private static func regionMasks(config: BioCAPGeographyConfig?) -> [UInt64]? {
+        guard let config else { return nil }
+        var masks = Array(repeating: UInt64.zero, count: config.regions.count)
+        for (stateIndex, regionIndex) in config.stateRegionIndices.enumerated() {
+            guard regionIndex >= 0, regionIndex < masks.count, stateIndex < 64 else {
+                continue
+            }
+            masks[regionIndex] |= UInt64(1) << UInt64(stateIndex)
+        }
+        return masks
+    }
+
     private static func validateModelContract(_ model: MLModel, config: BioCAPConfig) throws -> String {
         let description = model.modelDescription
         guard description.inputDescriptionsByName.count == 1,
@@ -407,7 +596,8 @@ nonisolated final class BioCAPImageClassifier {
     private static func validateAssets(
         species: [BioCAPSpeciesMetadata],
         config: BioCAPConfig,
-        textEmbeddings: [Float]
+        textEmbeddings: [Float],
+        geographyMemberships: [UInt64]?
     ) throws {
         guard config.embeddingDim > 0, config.speciesCount > 0 else {
             throw BioCAPImageClassifierError.assetMismatch(
@@ -425,6 +615,42 @@ nonisolated final class BioCAPImageClassifier {
         guard textEmbeddings.count == config.speciesCount * config.embeddingDim else {
             throw BioCAPImageClassifierError.assetMismatch(
                 "Embedding matrix shape does not match config."
+            )
+        }
+        if let geography = config.geography {
+            guard !geography.regions.isEmpty,
+                  geography.regions.count <= 64,
+                  geography.stateCodes.count == geography.stateRegionIndices.count,
+                  geography.stateCodes.count <= 64,
+                  Set(geography.stateCodes).count == geography.stateCodes.count,
+                  Set(geography.regions.map(\.id)).count == geography.regions.count,
+                  geography.stateRegionIndices.allSatisfy({
+                      geography.regions.indices.contains($0)
+                  }) else {
+                throw BioCAPImageClassifierError.assetMismatch(
+                    "BioCAP geography config has invalid states or regions."
+                )
+            }
+            guard geographyMemberships?.count == config.speciesCount else {
+                throw BioCAPImageClassifierError.assetMismatch(
+                    "BioCAP geography membership count does not match config."
+                )
+            }
+            let allowedMask: UInt64 = if geography.stateCodes.count == 64 {
+                .max
+            } else {
+                (UInt64(1) << UInt64(geography.stateCodes.count)) - 1
+            }
+            guard geographyMemberships?.allSatisfy({
+                $0 != 0 && $0 & ~allowedMask == 0
+            }) == true else {
+                throw BioCAPImageClassifierError.assetMismatch(
+                    "BioCAP geography contains an empty or unknown state membership."
+                )
+            }
+        } else if geographyMemberships != nil {
+            throw BioCAPImageClassifierError.assetMismatch(
+                "BioCAP geography data exists without a config declaration."
             )
         }
 

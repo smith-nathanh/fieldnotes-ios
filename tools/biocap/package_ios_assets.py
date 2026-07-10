@@ -19,6 +19,7 @@ GENERATED_PATHS = (
     "Models",
     "TestFixtures",
 )
+OPTIONAL_GENERATED_PATHS = ("BioCAPGeography.bin",)
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,6 +50,7 @@ def generated_files(root: Path) -> list[Path]:
             files.append(path)
         else:
             files.extend(item for item in path.rglob("*") if item.is_file())
+    files.extend(root / name for name in OPTIONAL_GENERATED_PATHS if (root / name).is_file())
     return sorted(files, key=lambda path: path.relative_to(root).as_posix())
 
 
@@ -94,6 +96,7 @@ def main() -> None:
             "promptPreset": config["promptPreset"],
             "promptTemplateCount": config["promptTemplateCount"],
             "labelTextType": config["labelTextType"],
+            "geography": config.get("geography"),
         },
         "files": [
             {

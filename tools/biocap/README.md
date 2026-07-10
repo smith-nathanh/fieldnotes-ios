@@ -159,6 +159,33 @@ At 512 dimensions, the full matrix is projected to use 108,056,576 bytes as
 float32 or 54,028,288 bytes as float16. These are projections only. Float16 must
 preserve ranking parity before the U.S. catalog can replace production assets.
 
+After the canonical float32 archive is validated, capture the frozen benchmark's
+normalized image queries once and use them to make the float16 comparison
+deterministic:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/classify_biocap_cached.py \
+  --embeddings tmp/biocap-catalogs/us-regional-v1/embeddings-biocap-openai-f32/biocap_text_embeddings.npz \
+  --species-list tmp/biocap-catalogs/us-regional-v1/species.jsonl \
+  --image-manifest tmp/biocap-datasets/nc-v1/benchmark_manifest.jsonl \
+  --device cpu \
+  --top-k 10 \
+  --query-embeddings-output tmp/biocap-validation/us-regional-v1/nc-v1-image-embeddings.npz \
+  --report tmp/biocap-validation/us-regional-v1/float32-benchmark.json
+
+uv run --python .venv-biocap/bin/python tools/biocap/quantize_biocap_embeddings.py \
+  --input tmp/biocap-catalogs/us-regional-v1/embeddings-biocap-openai-f32/biocap_text_embeddings.npz \
+  --output tmp/biocap-catalogs/us-regional-v1/embeddings-biocap-openai-f16/biocap_text_embeddings.npz \
+  --query-embeddings tmp/biocap-validation/us-regional-v1/nc-v1-image-embeddings.npz \
+  --top-k 10 \
+  --report tmp/biocap-validation/us-regional-v1/float16-parity.json
+```
+
+The quantizer preserves the archive's scientific-name and prompt metadata while
+reporting element error, row-norm/cosine drift, top-1 parity, ordered top-10
+parity, and top-10 candidate-set parity. Float16 remains a candidate until those
+real-photo results pass; the app continues to use canonical float32 by default.
+
 ### Local U.S. catalog storage
 
 The full command above pulls data directly from iNaturalist's
@@ -991,6 +1018,17 @@ uv run --python .venv-biocap/bin/python tools/biocap/export_ios_assets.py \
   --model tmp/biocap-validation/coreml-smoke-run-static-manual/BioCAPVisionEncoder.mlpackage
 ```
 
+For `us-regional-v1`, also pass its definition so the exporter writes the compact
+state geography table:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/export_ios_assets.py \
+  --embeddings tmp/biocap-catalogs/us-regional-v1/embeddings-biocap-openai-f32/biocap_text_embeddings.npz \
+  --species-list tmp/biocap-catalogs/us-regional-v1/species.jsonl \
+  --geography-definition tools/biocap/catalogs/us-regional-v1.json \
+  --model tmp/biocap-validation/coreml-smoke-run-static-manual/BioCAPVisionEncoder.mlpackage
+```
+
 Pass `--image-manifest`, `--rankings`, and `--fixture-scientific-name` only when
 those files were produced from the same image-native candidate list.
 
@@ -1000,6 +1038,9 @@ That writes generated resources under
 - `BioCAPTextEmbeddings.f32`: row-major float32 text embedding matrix.
 - `BioCAPSpecies.json`: scientific-name keyed species metadata.
 - `BioCAPConfig.json`: embedding shape and prompt/export metadata.
+- `BioCAPGeography.bin`: optional little-endian UInt64 state-membership mask per
+  species. The 52,762-row U.S. table is only 422,096 bytes; state ordering and
+  state-to-region indices live in `BioCAPConfig.json`.
 - `Models/BioCAPVisionEncoder.mlpackage`: normalized image encoder.
 - `TestFixtures/BioCAPFixture.jpg` and `.json`: one top-1 fixture for XCTest.
 
@@ -1014,6 +1055,10 @@ The iOS spike currently consists of:
   `.mlpackage`, preprocesses a `UIImage` to BioCAP/OpenCLIP's 224x224 tensor,
   decodes float16/float32 model output, normalizes it, and ranks against cached
   text embeddings.
+- A persisted nearby-match preference with Automatic, nine named U.S. regions,
+  and Everywhere. Automatic resolves a broad region locally from the photo or
+  current coordinate. A matching region receives only a +0.005 ordering boost;
+  no candidate is filtered out.
 - `testBioCAPFixtureRanksExpectedSpeciesWhenLocalAssetsExist`, which skips when
   local BioCAP assets are absent and runs a real Core ML fixture classification
   when they are present.

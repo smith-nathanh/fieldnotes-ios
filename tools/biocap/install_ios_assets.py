@@ -110,6 +110,12 @@ def main() -> None:
         output.mkdir(parents=True, exist_ok=True)
         for name in ("BioCAPConfig.json", "BioCAPSpecies.json", "BioCAPTextEmbeddings.f32"):
             shutil.copy2(source / name, output / name)
+        geography_source = source / "BioCAPGeography.bin"
+        geography_destination = output / geography_source.name
+        if geography_source.is_file():
+            shutil.copy2(geography_source, geography_destination)
+        elif geography_destination.exists():
+            geography_destination.unlink()
         for name in ("Models", "TestFixtures"):
             destination = output / name
             if destination.exists():

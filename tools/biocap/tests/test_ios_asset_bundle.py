@@ -28,10 +28,16 @@ class IOSAssetBundleTests(unittest.TestCase):
                 "promptPreset": "test",
                 "promptTemplateCount": 1,
                 "labelTextType": "scientific",
+                "geography": {
+                    "stateCodes": ["US-NC"],
+                    "stateRegionIndices": [0],
+                    "regions": [{"id": "southeast", "displayName": "Southeast"}],
+                },
             }
             (source / "BioCAPConfig.json").write_text(json.dumps(config))
             (source / "BioCAPSpecies.json").write_text("[]")
             (source / "BioCAPTextEmbeddings.f32").write_bytes(b"12345678")
+            (source / "BioCAPGeography.bin").write_bytes(b"\x01\x00\x00\x00\x00\x00\x00\x00")
             (source / "Models" / "Example.mlpackage" / "model.bin").write_bytes(b"model")
             (source / "TestFixtures" / "fixture.jpg").write_bytes(b"fixture")
             archive = root / "assets.tar.gz"
@@ -74,6 +80,10 @@ class IOSAssetBundleTests(unittest.TestCase):
             )
 
             self.assertEqual((output / "BioCAPTextEmbeddings.f32").read_bytes(), b"12345678")
+            self.assertEqual(
+                (output / "BioCAPGeography.bin").read_bytes(),
+                b"\x01\x00\x00\x00\x00\x00\x00\x00",
+            )
             self.assertEqual(
                 (output / "Models" / "Example.mlpackage" / "model.bin").read_bytes(),
                 b"model",

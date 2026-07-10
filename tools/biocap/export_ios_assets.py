@@ -36,6 +36,15 @@ def parse_args() -> argparse.Namespace:
         help="Exported BioCAPVisionEncoder.mlpackage.",
     )
     parser.add_argument(
+        "--geography-definition",
+        type=Path,
+        help=(
+            "Optional regional catalog definition. When supplied, export one "
+            "little-endian UInt64 state-membership mask per species plus the "
+            "state-to-region mapping in BioCAPConfig.json."
+        ),
+    )
+    parser.add_argument(
         "--image-manifest",
         type=Path,
         help="Optional validation image manifest used to copy one local fixture.",
@@ -112,6 +121,91 @@ def validated_embeddings(
     return embeddings
 
 
+def build_geography_export(
+    species_rows: list[dict[str, object]], definition: dict[str, object]
+) -> tuple[dict[str, object], np.ndarray]:
+    regions = definition.get("regions")
+    places = definition.get("membershipPlaces")
+    if not isinstance(regions, list) or not regions:
+        raise SystemExit("Geography definition must contain a non-empty regions list.")
+    if not isinstance(places, list) or not places:
+        raise SystemExit(
+            "Geography definition must contain a non-empty membershipPlaces list."
+        )
+    if len(places) > 64:
+        raise SystemExit("Geography export supports at most 64 membership places.")
+
+    region_records: list[dict[str, str]] = []
+    region_indices: dict[str, int] = {}
+    for index, value in enumerate(regions):
+        if not isinstance(value, dict):
+            raise SystemExit("Every geography region must be an object.")
+        region_id = str(value.get("id") or "")
+        display_name = str(value.get("displayName") or "")
+        if not region_id or not display_name or region_id in region_indices:
+            raise SystemExit("Geography regions require unique IDs and display names.")
+        region_indices[region_id] = index
+        region_records.append({"id": region_id, "displayName": display_name})
+
+    state_codes: list[str] = []
+    state_region_indices: list[int] = []
+    state_indices: dict[str, int] = {}
+    for index, value in enumerate(places):
+        if not isinstance(value, dict):
+            raise SystemExit("Every geography membership place must be an object.")
+        code = str(value.get("code") or "")
+        region_id = str(value.get("regionID") or "")
+        if not code or code in state_indices:
+            raise SystemExit("Geography membership places require unique codes.")
+        if region_id not in region_indices:
+            raise SystemExit(
+                f"Geography membership place {code!r} has unknown region {region_id!r}."
+            )
+        state_indices[code] = index
+        state_codes.append(code)
+        state_region_indices.append(region_indices[region_id])
+
+    masks = np.zeros(len(species_rows), dtype="<u8")
+    for row_index, row in enumerate(species_rows):
+        area_codes = row.get("areaCodes")
+        region_ids = row.get("regionIDs")
+        if not isinstance(area_codes, list) or not area_codes:
+            raise SystemExit(
+                f"Species row {row_index} has no geography areaCodes membership."
+            )
+        unknown_codes = sorted({str(code) for code in area_codes} - set(state_indices))
+        if unknown_codes:
+            raise SystemExit(
+                f"Species row {row_index} has unknown geography codes: {unknown_codes}."
+            )
+        expected_regions = {
+            region_records[state_region_indices[state_indices[str(code)]]]["id"]
+            for code in area_codes
+        }
+        actual_regions = (
+            {str(region_id) for region_id in region_ids}
+            if isinstance(region_ids, list)
+            else set()
+        )
+        if actual_regions != expected_regions:
+            raise SystemExit(
+                f"Species row {row_index} regionIDs do not match its areaCodes."
+            )
+        mask = 0
+        for code in area_codes:
+            mask |= 1 << state_indices[str(code)]
+        masks[row_index] = mask
+
+    return (
+        {
+            "stateCodes": state_codes,
+            "stateRegionIndices": state_region_indices,
+            "regions": region_records,
+        },
+        masks,
+    )
+
+
 def read_ranked_top1(path: Path) -> set[str]:
     with path.open(newline="", encoding="utf-8") as handle:
         rows = csv.DictReader(handle)
@@ -161,6 +255,16 @@ def main() -> None:
     embeddings_path = output_dir / "BioCAPTextEmbeddings.f32"
     embeddings.tofile(embeddings_path)
 
+    geography_config = None
+    geography_path = None
+    if args.geography_definition is not None:
+        definition = json.loads(args.geography_definition.read_text(encoding="utf-8"))
+        geography_config, geography_masks = build_geography_export(
+            species_rows, definition
+        )
+        geography_path = output_dir / "BioCAPGeography.bin"
+        geography_masks.tofile(geography_path)
+
     metadata = []
     for index, row in enumerate(species_rows):
         output_row = {
@@ -198,6 +302,8 @@ def main() -> None:
         "labelTextType": str(embeddings_npz.get("label_text_type", np.asarray([""]))[0]),
         "promptTemplateCount": int(len(prompt_templates)),
     }
+    if geography_config is not None:
+        config["geography"] = geography_config
     (output_dir / "BioCAPConfig.json").write_text(
         json.dumps(config, indent=2, sort_keys=True),
         encoding="utf-8",
@@ -238,6 +344,7 @@ def main() -> None:
                 "embeddings": str(embeddings_path),
                 "speciesCount": config["speciesCount"],
                 "embeddingDim": config["embeddingDim"],
+                "geography": str(geography_path) if geography_path else None,
                 "fixture": str((fixture_dir / "BioCAPFixture.jpg")) if fixture else None,
             },
             indent=2,

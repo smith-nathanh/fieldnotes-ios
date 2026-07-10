@@ -15,6 +15,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var privacyFilterEnabled: Bool
     @Published private(set) var confidenceThreshold: Float
     @Published private(set) var locationTaggingEnabled: Bool
+    @Published private(set) var photoGeographyMode: BioCAPGeographyMode
+    @Published private(set) var photoRegionID: String
     @Published private(set) var elapsedListening: TimeInterval = 0
     @Published private(set) var sessionSpeciesCount = 0
     @Published private(set) var sessionDetectionCount = 0
@@ -34,6 +36,8 @@ final class AppModel: ObservableObject {
     private let privacyFilterEnabledKey = "privacyFilterEnabled"
     private let confidenceThresholdKey = "confidenceThreshold"
     private let locationTaggingEnabledKey = "locationTaggingEnabled"
+    private let photoGeographyModeKey = "photoGeographyMode"
+    private let photoRegionIDKey = "photoRegionID"
     private let defaultSettings = DetectionSettings()
 
     private static let audioModelVersion = "BirdNET_GLOBAL_6K_V2.4"
@@ -60,6 +64,12 @@ final class AppModel: ObservableObject {
         } else {
             self.locationTaggingEnabled = defaults.bool(forKey: locationTaggingEnabledKey)
         }
+        self.photoGeographyMode = BioCAPGeographyMode(
+            rawValue: defaults.string(forKey: photoGeographyModeKey) ?? ""
+        ) ?? .automatic
+        self.photoRegionID = BioCAPUSRegion(
+            rawValue: defaults.string(forKey: photoRegionIDKey) ?? ""
+        )?.rawValue ?? BioCAPUSRegion.southeast.rawValue
     }
 
     func load() async {
@@ -145,6 +155,19 @@ final class AppModel: ObservableObject {
         defaults.set(enabled, forKey: locationTaggingEnabledKey)
     }
 
+    func setPhotoGeographyMode(_ mode: BioCAPGeographyMode) {
+        photoGeographyMode = mode
+        defaults.set(mode.rawValue, forKey: photoGeographyModeKey)
+    }
+
+    func setPhotoRegionID(_ regionID: String) {
+        guard BioCAPUSRegion(rawValue: regionID) != nil else { return }
+        photoRegionID = regionID
+        photoGeographyMode = .selectedRegion
+        defaults.set(regionID, forKey: photoRegionIDKey)
+        defaults.set(BioCAPGeographyMode.selectedRegion.rawValue, forKey: photoGeographyModeKey)
+    }
+
     func startPhotoClassificationContext() {
         guard locationTaggingEnabled else { return }
         locationService.start()
@@ -165,7 +188,11 @@ final class AppModel: ObservableObject {
             latitude: coordinate?.latitude,
             longitude: coordinate?.longitude,
             week: Calendar(identifier: .iso8601).component(.weekOfYear, from: date),
-            horizontalAccuracy: photoCoordinate == nil ? location?.horizontalAccuracy : nil
+            horizontalAccuracy: photoCoordinate == nil ? location?.horizontalAccuracy : nil,
+            geographyPreference: BioCAPGeographyPreference(
+                mode: photoGeographyMode,
+                regionID: photoRegionID
+            )
         )
     }
 

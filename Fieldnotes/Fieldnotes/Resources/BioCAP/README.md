@@ -11,12 +11,15 @@ against the bundled species embeddings.
 ## Runtime Flow
 
 1. The user takes or chooses a photo in the Photo tab.
-2. `BioCAPImageClassifier` center-crops and resizes the image to `224x224`.
+2. The user accepts or adjusts an on-device subject crop; the classifier resizes
+   that square to `224x224`.
 3. The image is normalized with CLIP/OpenCLIP mean and standard deviation.
 4. `BioCAPVisionEncoder.mlpackage` produces a normalized image embedding.
 5. The app computes cosine similarity against `BioCAPTextEmbeddings.f32`.
 6. The top species rows from `BioCAPSpecies.json` are shown as ranked matches.
-7. Saved photo matches are logged by scientific name so they merge with BirdNET
+7. Automatic location, a selected U.S. region, or Everywhere controls an
+   optional +0.005 soft ordering boost. It never filters the catalog.
+8. Saved photo matches are logged by scientific name so they merge with BirdNET
    audio detections for the same species.
 
 Scores are cosine similarities, not calibrated probabilities.
@@ -30,6 +33,8 @@ Scores are cosine similarities, not calibrated probabilities.
 - `BioCAPSpecies.json` - species metadata in the same row order as the embedding
   matrix. Each row includes scientific name, common name, taxon, and index.
 - `BioCAPConfig.json` - shape and provenance metadata for the model assets.
+- `BioCAPGeography.bin` - optional compact UInt64 state membership per species;
+  present in U.S.-wide regional bundles and interpreted using `BioCAPConfig.json`.
 - `TestFixtures/` - small fixture image and expected output metadata for app
   validation.
 

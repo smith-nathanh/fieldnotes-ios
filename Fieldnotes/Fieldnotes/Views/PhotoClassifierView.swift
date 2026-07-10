@@ -27,6 +27,20 @@ struct PhotoClassifierView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     Masthead(title: "Photo", eyebrow: "Field Specimen")
 
+                    PhotoGeographyPicker(
+                        mode: model.photoGeographyMode,
+                        selectedRegionID: model.photoRegionID,
+                        regions: assetSummary?.regions
+                            ?? BioCAPUSRegion.allCases.map {
+                                BioCAPRegionDefinition(
+                                    id: $0.rawValue,
+                                    displayName: $0.displayName
+                                )
+                            },
+                        onModeChange: model.setPhotoGeographyMode,
+                        onRegionChange: model.setPhotoRegionID
+                    )
+
                     PhotoSelectionPanel(
                         selectedImage: selectedImage,
                         isClassifying: status.isClassifying,
@@ -333,6 +347,63 @@ private struct PhotoSelectionPanel: View {
     }
 }
 
+private struct PhotoGeographyPicker: View {
+    var mode: BioCAPGeographyMode
+    var selectedRegionID: String
+    var regions: [BioCAPRegionDefinition]
+    var onModeChange: (BioCAPGeographyMode) -> Void
+    var onRegionChange: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Nearby matches")
+                        .font(.serif(18, .semibold))
+                        .foregroundStyle(Color.ink)
+                    Text("Helps likely local wildlife appear higher without hiding unusual finds.")
+                        .font(.serif(12))
+                        .foregroundStyle(Color.inkSoft)
+                }
+                Spacer(minLength: 12)
+                Picker("Nearby matches", selection: selection) {
+                    Text("Automatic").tag("automatic")
+                    ForEach(regions, id: \.id) { region in
+                        Text(region.displayName).tag("region:\(region.id)")
+                    }
+                    Text("Everywhere").tag("everywhere")
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .tint(Color.rust)
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.paperCard))
+    }
+
+    private var selection: Binding<String> {
+        Binding(
+            get: {
+                switch mode {
+                case .automatic: "automatic"
+                case .selectedRegion: "region:\(selectedRegionID)"
+                case .everywhere: "everywhere"
+                }
+            },
+            set: { value in
+                if value == "automatic" {
+                    onModeChange(.automatic)
+                } else if value == "everywhere" {
+                    onModeChange(.everywhere)
+                } else if value.hasPrefix("region:") {
+                    onRegionChange(String(value.dropFirst("region:".count)))
+                }
+            }
+        )
+    }
+}
+
 private struct PhotoResultsPanel: View {
     var status: PhotoClassificationStatus
     var predictions: [BioCAPPhotoPrediction]
@@ -413,8 +484,8 @@ private struct PhotoIdentificationSummary: View {
             Text(detail)
                 .font(.serif(13))
                 .foregroundStyle(Color.inkSoft)
-            if result.appliedNorthCarolinaPrior {
-                Text("North Carolina filter applied")
+            if let geographyName = result.appliedGeographyName {
+                Text("\(geographyName) matches prioritized")
                     .font(.mono(10, .medium))
                     .foregroundStyle(Color.inkFaint)
             }
