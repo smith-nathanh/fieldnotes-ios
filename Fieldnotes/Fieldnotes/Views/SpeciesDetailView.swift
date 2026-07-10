@@ -240,7 +240,12 @@ extension Taxon {
         case .mammal: return "hare"
         case .amphibian: return "drop"
         case .reptile: return "lizard"
+        case .fish: return "fish"
         case .insect: return "ant"
+        case .arachnid: return "ant"
+        case .crustacean: return "water.waves"
+        case .mollusk: return "circle.dotted"
+        case .animal: return "pawprint"
         case .unknown: return "questionmark"
         }
     }
@@ -251,7 +256,12 @@ extension Taxon {
         case .mammal: return "Mammalia"
         case .amphibian: return "Amphibia"
         case .reptile: return "Reptilia"
+        case .fish: return "Actinopterygii"
         case .insect: return "Insecta"
+        case .arachnid: return "Arachnida"
+        case .crustacean: return "Crustacea"
+        case .mollusk: return "Mollusca"
+        case .animal: return "Animalia"
         case .unknown: return "Unknown"
         }
     }

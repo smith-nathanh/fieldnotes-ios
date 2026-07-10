@@ -36,7 +36,8 @@ Scores are cosine similarities, not calibrated probabilities.
 Current asset configuration:
 
 - model: `hf-hub:imageomics/biocap`
-- species count: `72,574`
+- species count: `16,467` (`10,494` North Carolina regional species plus
+  `5,973` taxonomy-validated travel fallback species)
 - embedding dimension: `512`
 - text label type: scientific name
 - prompt preset: `biocap-openai`
@@ -49,9 +50,13 @@ The runtime implementation lives in:
 Fieldnotes/Fieldnotes/Services/BioCAPImageClassifier.swift
 ```
 
-The classifier currently loads the Core ML model with CPU compute units for a
-conservative baseline. Device performance and accuracy should be measured before
-changing compute-unit or quantization choices.
+The classifier uses CPU-only Core ML execution as the verified safety baseline.
+The current converted model produces zero embeddings with `.cpuAndGPU` and `.all`
+on the Simulator. Both accelerated configurations preserve top-1 and the top-five
+candidate set on the tested iPhone 17 Pro, but were slower than CPU-only in the
+cold fixture run. Keep CPU-only for cross-runtime correctness and measured device
+performance unless a future export changes those results. Accuracy should also be
+measured before changing quantization.
 
 ## Related Tooling
 

@@ -2,7 +2,11 @@ import Foundation
 import FieldnotesCore
 
 nonisolated enum ResourceLocator {
-    static func url(named name: String, extension ext: String) throws -> URL {
+    static func url(
+        named name: String,
+        extension ext: String,
+        bundle: Bundle = .main
+    ) throws -> URL {
         let candidateSubdirectories = [
             nil,
             "Resources/Models",
@@ -14,12 +18,12 @@ nonisolated enum ResourceLocator {
         ]
 
         for subdirectory in candidateSubdirectories {
-            if let url = Bundle.main.url(forResource: name, withExtension: ext, subdirectory: subdirectory) {
+            if let url = bundle.url(forResource: name, withExtension: ext, subdirectory: subdirectory) {
                 return url
             }
         }
 
-        guard let url = Bundle.main.url(forResource: name, withExtension: ext) else {
+        guard let url = bundle.url(forResource: name, withExtension: ext) else {
             throw ResourceError.missing("\(name).\(ext)")
         }
         return url

@@ -608,8 +608,18 @@ private extension Taxon {
             return "Amphibians"
         case .reptile:
             return "Reptiles"
+        case .fish:
+            return "Fish"
         case .insect:
             return "Insects"
+        case .arachnid:
+            return "Arachnids"
+        case .crustacean:
+            return "Crustaceans"
+        case .mollusk:
+            return "Mollusks"
+        case .animal:
+            return "Other Animals"
         case .unknown:
             return "Unknown"
         }

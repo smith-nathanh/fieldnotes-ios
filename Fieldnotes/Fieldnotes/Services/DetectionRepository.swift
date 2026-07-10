@@ -50,7 +50,7 @@ struct DetectionRepository: Sendable {
 
     private func fetchDetections(in database: OpaquePointer) throws -> [FieldDetection] {
         let sql = """
-        SELECT id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week, location_accuracy, outing_id, model_version, is_first_of_species, photo_path
+        SELECT id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week, location_accuracy, outing_id, model_version, is_first_of_species, photo_path, similarity
         FROM detections
         ORDER BY detected_at DESC
         """
@@ -158,6 +158,12 @@ struct DetectionRepository: Sendable {
             in: "detections",
             database: database
         )
+        try addColumnIfNeeded(
+            named: "similarity",
+            definition: "REAL",
+            in: "detections",
+            database: database
+        )
         try execute(
             "CREATE INDEX IF NOT EXISTS idx_detections_species_seen ON detections(scientific_name, detected_at)",
             in: database
@@ -175,8 +181,8 @@ struct DetectionRepository: Sendable {
     private func insert(_ detections: [FieldDetection], in database: OpaquePointer) throws {
         let sql = """
         INSERT OR REPLACE INTO detections (
-            id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week, location_accuracy, outing_id, model_version, is_first_of_species, photo_path
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week, location_accuracy, outing_id, model_version, is_first_of_species, photo_path, similarity
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
@@ -228,6 +234,11 @@ struct DetectionRepository: Sendable {
                 sqlite3_bind_text(statement, 16, photoURL.path, -1, sqliteTransient)
             } else {
                 sqlite3_bind_null(statement, 16)
+            }
+            if let similarity = detection.similarity {
+                sqlite3_bind_double(statement, 17, Double(similarity))
+            } else {
+                sqlite3_bind_null(statement, 17)
             }
 
             guard sqlite3_step(statement) == SQLITE_DONE else {
@@ -290,6 +301,10 @@ struct DetectionRepository: Sendable {
             photoURL = nil
         }
 
+        let similarity = sqlite3_column_type(statement, 16) == SQLITE_NULL
+            ? nil
+            : Float(sqlite3_column_double(statement, 16))
+
         return FieldDetection(
             id: id,
             scientificName: scientificName,
@@ -297,6 +312,7 @@ struct DetectionRepository: Sendable {
             taxon: Taxon(rawValue: taxonRaw) ?? .unknown,
             source: DetectionSource(rawValue: sourceRaw) ?? .audio,
             confidence: Float(sqlite3_column_double(statement, 5)),
+            similarity: similarity,
             detectedAt: detectedAt,
             clipURL: clipURL,
             photoURL: photoURL,

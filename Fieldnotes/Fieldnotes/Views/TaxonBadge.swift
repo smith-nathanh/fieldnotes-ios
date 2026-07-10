@@ -26,8 +26,18 @@ struct TaxonBadge: View {
             return "drop"
         case .reptile:
             return "lizard"
+        case .fish:
+            return "fish"
         case .insect:
             return "ant"
+        case .arachnid:
+            return "ant"
+        case .crustacean:
+            return "water.waves"
+        case .mollusk:
+            return "circle.dotted"
+        case .animal:
+            return "pawprint"
         case .unknown:
             return "questionmark"
         }

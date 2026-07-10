@@ -46,7 +46,7 @@ struct DetectionRow: View {
     }
 
     private var scoreDisplay: DetectionScoreDisplay {
-        DetectionScoreDisplay(source: detection.source, score: detection.confidence)
+        DetectionScoreDisplay(source: detection.source, score: detection.evidenceScore)
     }
 
     private var placeName: String? {

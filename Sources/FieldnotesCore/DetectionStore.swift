@@ -49,10 +49,10 @@ public struct DetectionStore: Sendable {
             $0.detectedAt <= detection.detectedAt
         }
 
-        guard let strongest = candidates.max(by: { $0.confidence < $1.confidence }) else {
+        guard let strongest = candidates.max(by: { $0.evidenceScore < $1.evidenceScore }) else {
             return .insert
         }
-        if detection.confidence > strongest.confidence {
+        if detection.evidenceScore > strongest.evidenceScore {
             return .replace(existingID: strongest.id)
         }
         return .skip(existingID: strongest.id)
@@ -63,7 +63,7 @@ public struct DetectionStore: Sendable {
         return grouped.values.compactMap { items in
             guard let first = items.min(by: { $0.detectedAt < $1.detectedAt }),
                   let last = items.max(by: { $0.detectedAt < $1.detectedAt }),
-                  let best = items.max(by: { $0.confidence < $1.confidence }) else {
+                  let best = items.max(by: { $0.evidenceScore < $1.evidenceScore }) else {
                 return nil
             }
             return SpeciesSummary(
@@ -71,7 +71,7 @@ public struct DetectionStore: Sendable {
                 commonName: first.commonName,
                 taxon: first.taxon,
                 count: items.count,
-                bestConfidence: best.confidence,
+                bestConfidence: best.evidenceScore,
                 bestSource: best.source,
                 firstSeen: first.detectedAt,
                 lastSeen: last.detectedAt
@@ -109,11 +109,11 @@ public struct DetectionStore: Sendable {
 
     public static func cooldownSeconds(for taxon: Taxon) -> TimeInterval {
         switch taxon {
-        case .bird, .mammal, .unknown:
+        case .bird, .mammal, .animal, .unknown:
             return 5 * 60
-        case .amphibian, .reptile:
+        case .amphibian, .reptile, .fish:
             return 10 * 60
-        case .insect:
+        case .insect, .arachnid, .crustacean, .mollusk:
             return 30 * 60
         }
     }

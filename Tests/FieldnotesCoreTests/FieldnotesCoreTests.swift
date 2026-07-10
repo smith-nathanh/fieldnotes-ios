@@ -156,6 +156,18 @@ final class FieldnotesCoreTests: XCTestCase {
         XCTAssertEqual(DetectionStore.cooldownSeconds(for: .reptile), 10 * 60)
     }
 
+    func testImageCatalogTaxaRoundTripWithoutBecomingUnknown() throws {
+        let catalogTaxa: [Taxon] = [
+            .fish, .arachnid, .crustacean, .mollusk, .animal,
+        ]
+
+        for taxon in catalogTaxa {
+            let data = try JSONEncoder().encode(taxon)
+            XCTAssertEqual(try JSONDecoder().decode(Taxon.self, from: data), taxon)
+            XCTAssertEqual(Taxon(rawValue: taxon.rawValue), taxon)
+        }
+    }
+
     func testLegacyDetectionDecodingDefaultsSourceToAudio() throws {
         let json = """
         {
@@ -182,7 +194,8 @@ final class FieldnotesCoreTests: XCTestCase {
             commonName: "Eastern Cottontail",
             taxon: .mammal,
             source: .photo,
-            confidence: 0.396,
+            confidence: 0,
+            similarity: 0.396,
             detectedAt: Date(timeIntervalSince1970: 1_800_000_000),
             week: 27
         )
@@ -191,7 +204,9 @@ final class FieldnotesCoreTests: XCTestCase {
         let decoded = try JSONDecoder().decode(FieldDetection.self, from: encoded)
 
         XCTAssertEqual(decoded.source, .photo)
-        XCTAssertEqual(decoded.confidence, 0.396, accuracy: 0.0001)
+        XCTAssertEqual(decoded.confidence, 0, accuracy: 0.0001)
+        XCTAssertEqual(decoded.similarity ?? 0, 0.396, accuracy: 0.0001)
+        XCTAssertEqual(decoded.evidenceScore, 0.396, accuracy: 0.0001)
     }
 
     func testSummaryTracksBestScoreSource() {

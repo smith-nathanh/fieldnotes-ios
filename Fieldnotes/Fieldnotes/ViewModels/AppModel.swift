@@ -145,6 +145,30 @@ final class AppModel: ObservableObject {
         defaults.set(enabled, forKey: locationTaggingEnabledKey)
     }
 
+    func startPhotoClassificationContext() {
+        guard locationTaggingEnabled else { return }
+        locationService.start()
+    }
+
+    func stopPhotoClassificationContext() {
+        guard !isListening else { return }
+        locationService.stop()
+    }
+
+    func photoClassificationContext(
+        at date: Date = Date(),
+        photoCoordinate: CLLocationCoordinate2D? = nil
+    ) -> BioCAPPhotoContext {
+        let location = locationTaggingEnabled ? locationService.currentLocation : nil
+        let coordinate = locationTaggingEnabled ? photoCoordinate ?? location?.coordinate : nil
+        return BioCAPPhotoContext(
+            latitude: coordinate?.latitude,
+            longitude: coordinate?.longitude,
+            week: Calendar(identifier: .iso8601).component(.weekOfYear, from: date),
+            horizontalAccuracy: photoCoordinate == nil ? location?.horizontalAccuracy : nil
+        )
+    }
+
     func detections(for summary: SpeciesSummary) -> [FieldDetection] {
         detections
             .filter { $0.scientificName == summary.scientificName }
@@ -161,7 +185,11 @@ final class AppModel: ObservableObject {
             .sorted { $0.detectedAt > $1.detectedAt }
     }
 
-    func addPhotoPredictionToLog(_ prediction: BioCAPPhotoPrediction, image: UIImage? = nil) async {
+    func addPhotoPredictionToLog(
+        _ prediction: BioCAPPhotoPrediction,
+        image: UIImage? = nil,
+        context: BioCAPPhotoContext? = nil
+    ) async {
         let id = UUID()
         let detectedAt = Date()
         let week = Calendar(identifier: .iso8601).component(.weekOfYear, from: detectedAt)
@@ -172,10 +200,14 @@ final class AppModel: ObservableObject {
             commonName: prediction.commonName,
             taxon: Taxon(rawValue: prediction.taxon) ?? .unknown,
             source: .photo,
-            confidence: prediction.score,
+            confidence: 0,
+            similarity: prediction.similarity,
             detectedAt: detectedAt,
             photoURL: photoURL,
-            week: week
+            latitude: context?.latitude,
+            longitude: context?.longitude,
+            week: context?.week ?? week,
+            locationAccuracy: context?.horizontalAccuracy
         )
         await record(detection)
     }
@@ -324,8 +356,16 @@ final class AppModel: ObservableObject {
 
     private func detectionWithCurrentLocation(_ detection: FieldDetection) -> FieldDetection {
         var detection = detection
-        detection.week = Calendar(identifier: .iso8601).component(.weekOfYear, from: detection.detectedAt)
+        if detection.source == .audio {
+            detection.week = Calendar(identifier: .iso8601).component(
+                .weekOfYear,
+                from: detection.detectedAt
+            )
+        }
 
+        if detection.latitude != nil, detection.longitude != nil {
+            return detection
+        }
         guard locationTaggingEnabled, let location = locationService.currentLocation else {
             detection.latitude = nil
             detection.longitude = nil
@@ -348,7 +388,7 @@ final class AppModel: ObservableObject {
         case .audio:
             return "\(Int(detection.confidence * 100))%"
         case .photo:
-            return "\(detection.confidence.formatted(.number.precision(.fractionLength(3)))) sim"
+            return "\(detection.evidenceScore.formatted(.number.precision(.fractionLength(3)))) sim"
         }
     }
 }

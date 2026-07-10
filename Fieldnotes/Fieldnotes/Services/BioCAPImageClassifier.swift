@@ -7,7 +7,150 @@ nonisolated struct BioCAPPhotoPrediction: Equatable, Sendable {
     var scientificName: String
     var commonName: String
     var taxon: String
-    var score: Float
+    /// Raw cosine similarity from BioCAP. This is not a calibrated probability.
+    var similarity: Float
+    /// Similarity plus any documented soft context prior, used only for ordering.
+    var rankingScore: Float
+    var genus: String?
+    var family: String?
+    var catalogTier: String?
+
+    // Compatibility for existing fixture/performance diagnostics while callers
+    // migrate to the correctly named similarity field.
+    var score: Float { similarity }
+}
+
+nonisolated struct BioCAPPhotoContext: Equatable, Sendable {
+    var latitude: Double?
+    var longitude: Double?
+    var week: Int
+    var horizontalAccuracy: Double? = nil
+
+    var appliesNorthCarolinaPrior: Bool {
+        guard let latitude, let longitude else { return false }
+        // Deliberately coarse and used only as a small positive prior. It never
+        // excludes travel-tier species near a state line or on an unusual find.
+        return (33.5...36.7).contains(latitude) && (-84.4 ... -75.3).contains(longitude)
+    }
+}
+
+nonisolated enum BioCAPSuggestedRank: String, Equatable, Sendable {
+    case species
+    case genus
+    case family
+    case uncertain
+}
+
+nonisolated struct BioCAPClassificationResult: Equatable, Sendable {
+    var predictions: [BioCAPPhotoPrediction]
+    var suggestedRank: BioCAPSuggestedRank
+    var suggestedName: String?
+    var top1Top2Margin: Float?
+    var appliedNorthCarolinaPrior: Bool
+
+    var exactPrediction: BioCAPPhotoPrediction? {
+        suggestedRank == .species ? predictions.first : nil
+    }
+}
+
+nonisolated enum BioCAPIdentificationPolicy {
+    /// Pilot threshold selected on nc-v1. At 0.035, 8/9 accepted top-1 results
+    /// were correct. This is intentionally not represented as confidence and
+    /// must be recalibrated on a larger held-out/open-set dataset.
+    static let exactSpeciesMargin: Float = 0.035
+    static let contenderDelta: Float = 0.020
+
+    static func evaluate(
+        predictions: [BioCAPPhotoPrediction],
+        appliedNorthCarolinaPrior: Bool
+    ) -> BioCAPClassificationResult {
+        let predictions = collapsedSpeciesPredictions(predictions)
+        guard let first = predictions.first else {
+            return BioCAPClassificationResult(
+                predictions: [],
+                suggestedRank: .uncertain,
+                suggestedName: nil,
+                top1Top2Margin: nil,
+                appliedNorthCarolinaPrior: appliedNorthCarolinaPrior
+            )
+        }
+        let margin = predictions.dropFirst().first.map {
+            first.rankingScore - $0.rankingScore
+        }
+        if margin.map({ $0 >= exactSpeciesMargin }) ?? true {
+            return BioCAPClassificationResult(
+                predictions: predictions,
+                suggestedRank: .species,
+                suggestedName: first.commonName,
+                top1Top2Margin: margin,
+                appliedNorthCarolinaPrior: appliedNorthCarolinaPrior
+            )
+        }
+
+        let contenders = predictions.prefix {
+            first.rankingScore - $0.rankingScore <= contenderDelta
+        }
+        let genera = Set(contenders.compactMap { normalized($0.genus) })
+        if genera.count == 1, let genus = genera.first, contenders.count > 1 {
+            return BioCAPClassificationResult(
+                predictions: predictions,
+                suggestedRank: .genus,
+                suggestedName: genus,
+                top1Top2Margin: margin,
+                appliedNorthCarolinaPrior: appliedNorthCarolinaPrior
+            )
+        }
+        let families = Set(contenders.compactMap { normalized($0.family) })
+        if families.count == 1, let family = families.first, contenders.count > 1 {
+            return BioCAPClassificationResult(
+                predictions: predictions,
+                suggestedRank: .family,
+                suggestedName: family,
+                top1Top2Margin: margin,
+                appliedNorthCarolinaPrior: appliedNorthCarolinaPrior
+            )
+        }
+        return BioCAPClassificationResult(
+            predictions: predictions,
+            suggestedRank: .uncertain,
+            suggestedName: nil,
+            top1Top2Margin: margin,
+            appliedNorthCarolinaPrior: appliedNorthCarolinaPrior
+        )
+    }
+
+    private static func normalized(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else { return nil }
+        return value
+    }
+
+    /// Catalog sources can contain both a species and one or more infraspecies.
+    /// They are one identification decision, not competing evidence. Keep the
+    /// canonical species row when present while retaining the group's best score.
+    private static func collapsedSpeciesPredictions(
+        _ predictions: [BioCAPPhotoPrediction]
+    ) -> [BioCAPPhotoPrediction] {
+        let grouped = Dictionary(grouping: predictions, by: speciesKey)
+        return grouped.values.compactMap { group in
+            guard var representative = group.first(where: {
+                $0.scientificName == speciesKey($0)
+            }) ?? group.max(by: { $0.rankingScore < $1.rankingScore }) else {
+                return nil
+            }
+            representative.similarity = group.map(\.similarity).max() ?? representative.similarity
+            representative.rankingScore = group.map(\.rankingScore).max() ?? representative.rankingScore
+            return representative
+        }
+        .sorted { $0.rankingScore > $1.rankingScore }
+    }
+
+    private static func speciesKey(_ prediction: BioCAPPhotoPrediction) -> String {
+        prediction.scientificName
+            .split(whereSeparator: \.isWhitespace)
+            .prefix(2)
+            .joined(separator: " ")
+    }
 }
 
 nonisolated struct BioCAPSpeciesMetadata: Decodable, Equatable {
@@ -15,6 +158,33 @@ nonisolated struct BioCAPSpeciesMetadata: Decodable, Equatable {
     var scientificName: String
     var commonName: String
     var taxon: String
+    var kingdom: String?
+    var phylum: String?
+    var className: String?
+    var order: String?
+    var family: String?
+    var genus: String?
+    var species: String?
+    var catalogTier: String?
+    var alsoInTravelFallback: Bool?
+    var regionalResearchObservations: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case index
+        case scientificName
+        case commonName
+        case taxon
+        case kingdom
+        case phylum
+        case className = "class"
+        case order
+        case family
+        case genus
+        case species
+        case catalogTier
+        case alsoInTravelFallback
+        case regionalResearchObservations
+    }
 }
 
 nonisolated struct BioCAPConfig: Decodable, Equatable {
@@ -34,31 +204,86 @@ nonisolated struct BioCAPAssetSummary: Equatable, Sendable {
     var labelTextType: String
 }
 
+actor BioCAPImageClassificationService {
+    private var classifier: BioCAPImageClassifier?
+
+    func classifyJPEGData(
+        _ data: Data,
+        limit: Int = 5,
+        context: BioCAPPhotoContext? = nil
+    ) throws -> BioCAPClassificationResult {
+        guard let image = UIImage(data: data) else {
+            throw BioCAPImageClassifierError.invalidImage
+        }
+        let classifier = try cachedClassifier()
+        let predictions = try classifier.classify(image, limit: limit, context: context)
+        return BioCAPIdentificationPolicy.evaluate(
+            predictions: predictions,
+            appliedNorthCarolinaPrior: context?.appliesNorthCarolinaPrior == true
+        )
+    }
+
+    private func cachedClassifier() throws -> BioCAPImageClassifier {
+        if let classifier {
+            return classifier
+        }
+        let classifier = try BioCAPImageClassifier()
+        self.classifier = classifier
+        return classifier
+    }
+}
+
 nonisolated final class BioCAPImageClassifier {
+    private static let inputName = "image"
+    private static let inputShape = [1, 3, 224, 224]
+
     private let model: MLModel
     private let species: [BioCAPSpeciesMetadata]
     private let config: BioCAPConfig
     private let textEmbeddings: [Float]
+    private let embeddingOutputName: String
 
-    init(bundle: Bundle = .main) throws {
-        self.model = try Self.loadModel(bundle: bundle)
-        self.species = try Self.loadSpecies(bundle: bundle)
-        self.config = try Self.loadConfig(bundle: bundle)
-        self.textEmbeddings = try Self.loadEmbeddings(bundle: bundle)
+    init(
+        bundle: Bundle = .main,
+        computeUnits: MLComputeUnits = .cpuOnly
+    ) throws {
+        let config = try Self.loadConfig(bundle: bundle)
+        let species = try Self.loadSpecies(bundle: bundle)
+        let textEmbeddings = try Self.loadEmbeddings(bundle: bundle)
+        let model = try Self.loadModel(bundle: bundle, computeUnits: computeUnits)
+        let embeddingOutputName = try Self.validateModelContract(model, config: config)
+        try Self.validateAssets(species: species, config: config, textEmbeddings: textEmbeddings)
 
-        guard species.count == config.speciesCount else {
-            throw BioCAPImageClassifierError.assetMismatch("Species count does not match config.")
-        }
-        guard textEmbeddings.count == config.speciesCount * config.embeddingDim else {
-            throw BioCAPImageClassifierError.assetMismatch("Embedding matrix shape does not match config.")
-        }
+        self.model = model
+        self.species = species
+        self.config = config
+        self.textEmbeddings = textEmbeddings
+        self.embeddingOutputName = embeddingOutputName
     }
 
-    func classify(_ image: UIImage, limit: Int = 5) throws -> [BioCAPPhotoPrediction] {
+    func classify(
+        _ image: UIImage,
+        limit: Int = 5,
+        context: BioCAPPhotoContext? = nil
+    ) throws -> [BioCAPPhotoPrediction] {
+        guard limit > 0 else {
+            return []
+        }
         let input = try Self.preprocess(image)
-        let provider = try MLDictionaryFeatureProvider(dictionary: ["image": MLFeatureValue(multiArray: input)])
+        let provider = try MLDictionaryFeatureProvider(
+            dictionary: [Self.inputName: MLFeatureValue(multiArray: input)]
+        )
         let output = try model.prediction(from: provider)
-        let imageEmbedding = try Self.firstMultiArray(in: output).floatArray()
+        guard let outputFeature = output.featureValue(for: embeddingOutputName),
+              let outputArray = outputFeature.multiArrayValue else {
+            throw BioCAPImageClassifierError.missingOutput(embeddingOutputName)
+        }
+        let imageEmbedding = try outputArray.floatArray()
+        guard imageEmbedding.count == config.embeddingDim else {
+            throw BioCAPImageClassifierError.modelContract(
+                "BioCAP output \(embeddingOutputName) has \(imageEmbedding.count) values; expected \(config.embeddingDim)."
+            )
+        }
         let normalizedImageEmbedding = try Self.l2Normalized(imageEmbedding)
 
         let scores = species.indices.map { index -> BioCAPPhotoPrediction in
@@ -68,15 +293,25 @@ nonisolated final class BioCAPImageClassifier {
                 textEmbeddings[rowStart..<(rowStart + config.embeddingDim)]
             )
             let item = species[index]
+            let contextBoost: Float = if context?.appliesNorthCarolinaPrior == true,
+                                         item.catalogTier == "regional" {
+                0.005
+            } else {
+                0
+            }
             return BioCAPPhotoPrediction(
                 scientificName: item.scientificName,
                 commonName: item.commonName,
                 taxon: item.taxon,
-                score: score
+                similarity: score,
+                rankingScore: score + contextBoost,
+                genus: item.genus,
+                family: item.family,
+                catalogTier: item.catalogTier
             )
         }
 
-        return Array(scores.sorted { $0.score > $1.score }.prefix(limit))
+        return Array(scores.sorted { $0.rankingScore > $1.rankingScore }.prefix(min(limit, species.count)))
     }
 
     static func assetSummary(bundle: Bundle = .main) throws -> BioCAPAssetSummary {
@@ -89,45 +324,141 @@ nonisolated final class BioCAPImageClassifier {
         )
     }
 
-    private static func loadModel(bundle: Bundle) throws -> MLModel {
+    private static func loadModel(bundle: Bundle, computeUnits: MLComputeUnits) throws -> MLModel {
         let url: URL
-        if let compiledURL = try? ResourceLocator.url(named: "BioCAPVisionEncoder", extension: "mlmodelc") {
+        if let compiledURL = try? ResourceLocator.url(
+            named: "BioCAPVisionEncoder",
+            extension: "mlmodelc",
+            bundle: bundle
+        ) {
             url = compiledURL
         } else {
-            url = try ResourceLocator.url(named: "BioCAPVisionEncoder", extension: "mlpackage")
+            url = try ResourceLocator.url(
+                named: "BioCAPVisionEncoder",
+                extension: "mlpackage",
+                bundle: bundle
+            )
         }
         let configuration = MLModelConfiguration()
-        configuration.computeUnits = .cpuOnly
+        configuration.computeUnits = computeUnits
         return try MLModel(contentsOf: url, configuration: configuration)
     }
 
     private static func loadSpecies(bundle: Bundle) throws -> [BioCAPSpeciesMetadata] {
-        let url = try ResourceLocator.url(named: "BioCAPSpecies", extension: "json")
+        let url = try ResourceLocator.url(named: "BioCAPSpecies", extension: "json", bundle: bundle)
         let data = try Data(contentsOf: url)
         return try JSONDecoder().decode([BioCAPSpeciesMetadata].self, from: data)
     }
 
     private static func loadConfig(bundle: Bundle) throws -> BioCAPConfig {
-        let url = try ResourceLocator.url(named: "BioCAPConfig", extension: "json")
+        let url = try ResourceLocator.url(named: "BioCAPConfig", extension: "json", bundle: bundle)
         let data = try Data(contentsOf: url)
         return try JSONDecoder().decode(BioCAPConfig.self, from: data)
     }
 
     private static func loadEmbeddings(bundle: Bundle) throws -> [Float] {
-        let url = try ResourceLocator.url(named: "BioCAPTextEmbeddings", extension: "f32")
+        let url = try ResourceLocator.url(
+            named: "BioCAPTextEmbeddings",
+            extension: "f32",
+            bundle: bundle
+        )
         let data = try Data(contentsOf: url)
         return data.withUnsafeBytes { rawBuffer in
             Array(rawBuffer.bindMemory(to: Float.self))
         }
     }
 
-    private static func firstMultiArray(in output: MLFeatureProvider) throws -> MLMultiArray {
-        for featureName in output.featureNames {
-            if let multiArray = output.featureValue(for: featureName)?.multiArrayValue {
-                return multiArray
+    private static func validateModelContract(_ model: MLModel, config: BioCAPConfig) throws -> String {
+        let description = model.modelDescription
+        guard description.inputDescriptionsByName.count == 1,
+              let input = description.inputDescriptionsByName[inputName],
+              input.type == .multiArray,
+              let inputConstraint = input.multiArrayConstraint else {
+            throw BioCAPImageClassifierError.modelContract(
+                "BioCAP model must have one multi-array input named \(inputName)."
+            )
+        }
+        guard inputConstraint.shape.map(\.intValue) == inputShape,
+              inputConstraint.dataType == .float16 else {
+            throw BioCAPImageClassifierError.modelContract(
+                "BioCAP input \(inputName) must be float16 with shape \(inputShape)."
+            )
+        }
+
+        let outputs = description.outputDescriptionsByName
+        guard outputs.count == 1,
+              let (outputName, output) = outputs.first,
+              output.type == .multiArray,
+              let outputConstraint = output.multiArrayConstraint else {
+            throw BioCAPImageClassifierError.modelContract(
+                "BioCAP model must have exactly one multi-array embedding output."
+            )
+        }
+        let expectedOutputShape = [1, config.embeddingDim]
+        guard outputConstraint.shape.map(\.intValue) == expectedOutputShape,
+              outputConstraint.dataType == .float16 else {
+            throw BioCAPImageClassifierError.modelContract(
+                "BioCAP output \(outputName) must be float16 with shape \(expectedOutputShape)."
+            )
+        }
+        return outputName
+    }
+
+    private static func validateAssets(
+        species: [BioCAPSpeciesMetadata],
+        config: BioCAPConfig,
+        textEmbeddings: [Float]
+    ) throws {
+        guard config.embeddingDim > 0, config.speciesCount > 0 else {
+            throw BioCAPImageClassifierError.assetMismatch(
+                "BioCAP config must declare positive embedding and species dimensions."
+            )
+        }
+        guard config.embeddingDtype == "float32" else {
+            throw BioCAPImageClassifierError.assetMismatch(
+                "Unsupported BioCAP text embedding dtype: \(config.embeddingDtype)."
+            )
+        }
+        guard species.count == config.speciesCount else {
+            throw BioCAPImageClassifierError.assetMismatch("Species count does not match config.")
+        }
+        guard textEmbeddings.count == config.speciesCount * config.embeddingDim else {
+            throw BioCAPImageClassifierError.assetMismatch(
+                "Embedding matrix shape does not match config."
+            )
+        }
+
+        for (expectedIndex, item) in species.enumerated() {
+            guard item.index == expectedIndex else {
+                throw BioCAPImageClassifierError.assetMismatch(
+                    "Species metadata index \(item.index) is out of order at row \(expectedIndex)."
+                )
+            }
+            guard !item.scientificName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  !item.commonName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw BioCAPImageClassifierError.assetMismatch(
+                    "Species metadata row \(expectedIndex) has an empty name."
+                )
+            }
+
+            let rowStart = expectedIndex * config.embeddingDim
+            var squaredNorm = Float.zero
+            for offset in 0..<config.embeddingDim {
+                let value = textEmbeddings[rowStart + offset]
+                guard value.isFinite else {
+                    throw BioCAPImageClassifierError.assetMismatch(
+                        "Text embedding row \(expectedIndex) contains a non-finite value."
+                    )
+                }
+                squaredNorm += value * value
+            }
+            let norm = sqrt(squaredNorm)
+            guard norm.isFinite, abs(norm - 1) <= 0.001 else {
+                throw BioCAPImageClassifierError.assetMismatch(
+                    "Text embedding row \(expectedIndex) is not unit-normalized (norm \(norm))."
+                )
             }
         }
-        throw BioCAPImageClassifierError.missingOutput
     }
 
     private static func preprocess(_ image: UIImage) throws -> MLMultiArray {
@@ -225,7 +556,8 @@ nonisolated enum BioCAPImageClassifierError: LocalizedError {
     case assetMismatch(String)
     case invalidEmbedding(String)
     case invalidImage
-    case missingOutput
+    case missingOutput(String)
+    case modelContract(String)
     case unsupportedOutput(String)
 
     var errorDescription: String? {
@@ -236,8 +568,10 @@ nonisolated enum BioCAPImageClassifierError: LocalizedError {
             return message
         case .invalidImage:
             return "Could not preprocess photo for BioCAP."
-        case .missingOutput:
-            return "BioCAP model did not produce an embedding output."
+        case .missingOutput(let name):
+            return "BioCAP model did not produce the expected embedding output \(name)."
+        case .modelContract(let message):
+            return message
         case .unsupportedOutput(let message):
             return message
         }

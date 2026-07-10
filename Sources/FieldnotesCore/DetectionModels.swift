@@ -5,7 +5,12 @@ public enum Taxon: String, Codable, CaseIterable, Sendable {
     case mammal
     case amphibian
     case reptile
+    case fish
     case insect
+    case arachnid
+    case crustacean
+    case mollusk
+    case animal
     case unknown
 }
 
@@ -79,7 +84,10 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
     public var commonName: String
     public var taxon: Taxon
     public var source: DetectionSource
+    /// Calibrated/model confidence when the source provides one (BirdNET audio).
     public var confidence: Float
+    /// Raw cosine similarity for photo embeddings. Not a probability.
+    public var similarity: Float?
     public var detectedAt: Date
     public var clipURL: URL?
     /// On-disk path to the saved capture image, for photo detections.
@@ -103,6 +111,7 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         taxon: Taxon = .bird,
         source: DetectionSource = .audio,
         confidence: Float,
+        similarity: Float? = nil,
         detectedAt: Date,
         clipURL: URL? = nil,
         photoURL: URL? = nil,
@@ -120,6 +129,7 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         self.taxon = taxon
         self.source = source
         self.confidence = confidence
+        self.similarity = similarity
         self.detectedAt = detectedAt
         self.clipURL = clipURL
         self.photoURL = photoURL
@@ -139,6 +149,7 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         case taxon
         case source
         case confidence
+        case similarity
         case detectedAt
         case clipURL
         case photoURL
@@ -159,6 +170,7 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         taxon = try container.decode(Taxon.self, forKey: .taxon)
         source = try container.decodeIfPresent(DetectionSource.self, forKey: .source) ?? .audio
         confidence = try container.decode(Float.self, forKey: .confidence)
+        similarity = try container.decodeIfPresent(Float.self, forKey: .similarity)
         detectedAt = try container.decode(Date.self, forKey: .detectedAt)
         clipURL = try container.decodeIfPresent(URL.self, forKey: .clipURL)
         photoURL = try container.decodeIfPresent(URL.self, forKey: .photoURL)
@@ -169,6 +181,12 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         outingId = try container.decodeIfPresent(UUID.self, forKey: .outingId)
         modelVersion = try container.decodeIfPresent(String.self, forKey: .modelVersion)
         isFirstOfSpecies = try container.decodeIfPresent(Bool.self, forKey: .isFirstOfSpecies) ?? false
+    }
+
+    /// Comparable evidence used for same-source deduplication and display.
+    /// Legacy photo rows fall back to their old confidence column value.
+    public var evidenceScore: Float {
+        source == .photo ? similarity ?? confidence : confidence
     }
 }
 

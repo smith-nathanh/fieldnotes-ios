@@ -1,3 +1,5 @@
+import CoreLocation
+import ImageIO
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -7,12 +9,15 @@ struct PhotoClassifierView: View {
     @State private var selectedItem: PhotosPickerItem?
     @State private var selectedImage: UIImage?
     @State private var predictions: [BioCAPPhotoPrediction] = []
+    @State private var classificationResult: BioCAPClassificationResult?
+    @State private var classificationContext: BioCAPPhotoContext?
     @State private var status: PhotoClassificationStatus = .idle
     @State private var elapsedSeconds: TimeInterval?
     @State private var isShowingCamera = false
     @State private var addedScientificNames: Set<String> = []
     @State private var addingScientificName: String?
     @State private var assetSummary: BioCAPAssetSummary?
+    @State private var classificationService = BioCAPImageClassificationService()
 
     var body: some View {
         NavigationStack {
@@ -30,6 +35,7 @@ struct PhotoClassifierView: View {
                     PhotoResultsPanel(
                         status: status,
                         predictions: predictions,
+                        classificationResult: classificationResult,
                         elapsedSeconds: elapsedSeconds,
                         assetSummary: assetSummary,
                         addedScientificNames: addedScientificNames,
@@ -49,6 +55,10 @@ struct PhotoClassifierView: View {
             }
             .task {
                 loadAssetSummary()
+                model.startPhotoClassificationContext()
+            }
+            .onDisappear {
+                model.stopPhotoClassificationContext()
             }
             .fullScreenCover(isPresented: $isShowingCamera) {
                 CameraCaptureView { image in
@@ -61,6 +71,8 @@ struct PhotoClassifierView: View {
     private func classify(_ item: PhotosPickerItem) {
         status = .classifying
         predictions = []
+        classificationResult = nil
+        classificationContext = nil
         elapsedSeconds = nil
         addedScientificNames = []
         addingScientificName = nil
@@ -78,17 +90,15 @@ struct PhotoClassifierView: View {
                 }
 
                 selectedImage = classificationImage
-                let result = try await Task.detached(priority: .userInitiated) {
-                    guard let image = UIImage(data: classificationData) else {
-                        throw PhotoClassificationError.unreadableImage
-                    }
-                    let start = Date()
-                    let classifier = try BioCAPImageClassifier()
-                    let predictions = try classifier.classify(image, limit: 3)
-                    return (predictions, Date().timeIntervalSince(start))
-                }.value
+                let context = model.photoClassificationContext(
+                    at: data.embeddedCaptureDate ?? Date(),
+                    photoCoordinate: data.embeddedCoordinate
+                )
+                classificationContext = context
+                let result = try await classify(classificationData, context: context)
 
-                predictions = result.0
+                classificationResult = result.0
+                predictions = result.0.predictions
                 elapsedSeconds = result.1
                 status = .ready
             } catch {
@@ -102,6 +112,8 @@ struct PhotoClassifierView: View {
         selectedImage = classificationImage
         status = .classifying
         predictions = []
+        classificationResult = nil
+        classificationContext = nil
         elapsedSeconds = nil
         addedScientificNames = []
         addingScientificName = nil
@@ -111,17 +123,12 @@ struct PhotoClassifierView: View {
                 guard let data = classificationImage.jpegData(compressionQuality: 0.95) else {
                     throw PhotoClassificationError.unreadableImage
                 }
-                let result = try await Task.detached(priority: .userInitiated) {
-                    guard let image = UIImage(data: data) else {
-                        throw PhotoClassificationError.unreadableImage
-                    }
-                    let start = Date()
-                    let classifier = try BioCAPImageClassifier()
-                    let predictions = try classifier.classify(image, limit: 3)
-                    return (predictions, Date().timeIntervalSince(start))
-                }.value
+                let context = model.photoClassificationContext()
+                classificationContext = context
+                let result = try await classify(data, context: context)
 
-                predictions = result.0
+                classificationResult = result.0
+                predictions = result.0.predictions
                 elapsedSeconds = result.1
                 status = .ready
             } catch {
@@ -130,13 +137,33 @@ struct PhotoClassifierView: View {
         }
     }
 
+    private func classify(
+        _ data: Data,
+        context: BioCAPPhotoContext
+    ) async throws -> (BioCAPClassificationResult, TimeInterval) {
+        let start = Date()
+        let result = try await classificationService.classifyJPEGData(
+            data,
+            limit: 5,
+            context: context
+        )
+        return (result, Date().timeIntervalSince(start))
+    }
+
     private func addToLog(_ prediction: BioCAPPhotoPrediction) {
+        guard classificationResult?.exactPrediction?.scientificName == prediction.scientificName else {
+            return
+        }
         guard addingScientificName == nil else {
             return
         }
         addingScientificName = prediction.scientificName
         Task {
-            await model.addPhotoPredictionToLog(prediction, image: selectedImage)
+            await model.addPhotoPredictionToLog(
+                prediction,
+                image: selectedImage,
+                context: classificationContext
+            )
             addedScientificNames.insert(prediction.scientificName)
             addingScientificName = nil
         }
@@ -147,6 +174,41 @@ struct PhotoClassifierView: View {
             return
         }
         assetSummary = try? BioCAPImageClassifier.assetSummary()
+    }
+}
+
+extension Data {
+    var embeddedCoordinate: CLLocationCoordinate2D? {
+        guard let source = CGImageSourceCreateWithData(self as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+                as? [CFString: Any],
+              let gps = properties[kCGImagePropertyGPSDictionary] as? [CFString: Any],
+              let latitude = (gps[kCGImagePropertyGPSLatitude] as? NSNumber)?.doubleValue,
+              let longitude = (gps[kCGImagePropertyGPSLongitude] as? NSNumber)?.doubleValue else {
+            return nil
+        }
+        let latitudeReference = gps[kCGImagePropertyGPSLatitudeRef] as? String
+        let longitudeReference = gps[kCGImagePropertyGPSLongitudeRef] as? String
+        let coordinate = CLLocationCoordinate2D(
+            latitude: latitudeReference == "S" ? -latitude : latitude,
+            longitude: longitudeReference == "W" ? -longitude : longitude
+        )
+        return CLLocationCoordinate2DIsValid(coordinate) ? coordinate : nil
+    }
+
+    var embeddedCaptureDate: Date? {
+        guard let source = CGImageSourceCreateWithData(self as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+                as? [CFString: Any],
+              let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any],
+              let value = exif[kCGImagePropertyExifDateTimeOriginal] as? String else {
+            return nil
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+        return formatter.date(from: value)
     }
 }
 
@@ -233,6 +295,7 @@ private struct PhotoSelectionPanel: View {
 private struct PhotoResultsPanel: View {
     var status: PhotoClassificationStatus
     var predictions: [BioCAPPhotoPrediction]
+    var classificationResult: BioCAPClassificationResult?
     var elapsedSeconds: TimeInterval?
     var assetSummary: BioCAPAssetSummary?
     var addedScientificNames: Set<String>
@@ -242,7 +305,6 @@ private struct PhotoResultsPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
-                Eyebrow("Top Matches")
                 Spacer()
                 if let assetSummary {
                     MonoChip(text: "\(assetSummary.speciesCount.formatted()) species")
@@ -266,7 +328,11 @@ private struct PhotoResultsPanel: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 140)
             case .ready:
-                VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
+                    if let classificationResult {
+                        PhotoIdentificationSummary(result: classificationResult)
+                            .padding(.bottom, 8)
+                    }
                     ForEach(Array(predictions.enumerated()), id: \.offset) { index, prediction in
                         PhotoPredictionRow(
                             rank: index + 1,
@@ -274,6 +340,7 @@ private struct PhotoResultsPanel: View {
                             isAdded: addedScientificNames.contains(prediction.scientificName),
                             isAdding: addingScientificName == prediction.scientificName,
                             isAddDisabled: addingScientificName != nil,
+                            isExactLoggingAllowed: classificationResult?.exactPrediction?.scientificName == prediction.scientificName,
                             onAddToLog: { onAddToLog(prediction) }
                         )
                     }
@@ -281,6 +348,53 @@ private struct PhotoResultsPanel: View {
             case .failed(let message):
                 AlmanacEmpty("Could not classify photo", message: message)
             }
+        }
+    }
+}
+
+private struct PhotoIdentificationSummary: View {
+    var result: BioCAPClassificationResult
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.serif(17, .semibold))
+                .foregroundStyle(Color.ink)
+            Text(detail)
+                .font(.serif(13))
+                .foregroundStyle(Color.inkSoft)
+            if result.appliedNorthCarolinaPrior {
+                Text("North Carolina filter applied")
+                    .font(.mono(10, .medium))
+                    .foregroundStyle(Color.inkFaint)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.paperCard))
+    }
+
+    private var title: String {
+        switch result.suggestedRank {
+        case .species:
+            return "Strong match: \(result.suggestedName ?? "top result")"
+        case .genus:
+            return "Several close matches"
+        case .family:
+            return "Several close matches"
+        case .uncertain:
+            return "Compare these matches"
+        }
+    }
+
+    private var detail: String {
+        switch result.suggestedRank {
+        case .species:
+            return "This match is clearly ahead of the other suggestions."
+        case .genus, .family:
+            return "The suggestions are closely related, so compare the details below."
+        case .uncertain:
+            return "The photo is a close call. Compare the suggestions or try a tighter crop."
         }
     }
 }
@@ -306,6 +420,7 @@ private struct PhotoPredictionRow: View {
     var isAdded: Bool
     var isAdding: Bool
     var isAddDisabled: Bool
+    var isExactLoggingAllowed: Bool
     var onAddToLog: () -> Void
 
     var body: some View {
@@ -326,10 +441,12 @@ private struct PhotoPredictionRow: View {
             Spacer(minLength: 8)
 
             VStack(alignment: .trailing, spacing: 6) {
-                Text(prediction.score.formatted(.number.precision(.fractionLength(3))))
+                Text("\(prediction.similarity.formatted(.number.precision(.fractionLength(3)))) similarity")
                     .font(.serif(19, .semibold))
                     .foregroundStyle(rank == 1 ? Color.ink : Color.inkSoft)
-                addButton
+                if isExactLoggingAllowed || isAdded || isAdding {
+                    addButton
+                }
             }
         }
         .padding(.vertical, 12)
@@ -353,12 +470,12 @@ private struct PhotoPredictionRow: View {
             .background(Capsule().fill(addFill))
         }
         .buttonStyle(.plain)
-        .disabled(isAdded || isAddDisabled)
+        .disabled(isAdded || isAddDisabled || !isExactLoggingAllowed)
     }
 
     private var addForeground: Color {
         if isAdded { return .inkSoft }
-        if isAddDisabled { return .inkFaint }
+        if isAddDisabled || !isExactLoggingAllowed { return .inkFaint }
         return .rust
     }
 
