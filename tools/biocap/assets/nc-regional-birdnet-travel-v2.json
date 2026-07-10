@@ -1,0 +1,67 @@
+{
+  "archive": {
+    "bytes": 191588494,
+    "filename": "fieldnotes-biocap-nc-regional-birdnet-travel-v2.tar.gz",
+    "sha256": "f485390df081a61cfdd7099414d80ba61304a7ada12ab2032a02eb204bff66dd"
+  },
+  "assetVersion": "nc-regional-birdnet-travel-v2",
+  "config": {
+    "embeddingDim": 512,
+    "embeddingDtype": "float32",
+    "labelTextType": "scientific",
+    "modelName": "hf-hub:imageomics/biocap",
+    "promptPreset": "biocap-openai",
+    "promptTemplateCount": 81,
+    "speciesCount": 16467
+  },
+  "files": [
+    {
+      "bytes": 221,
+      "path": "BioCAP/BioCAPConfig.json",
+      "sha256": "d2e5fa40629230a0f049a89fb4a01e5a613193a2e74df90a694d1f3bbd502740"
+    },
+    {
+      "bytes": 8824723,
+      "path": "BioCAP/BioCAPSpecies.json",
+      "sha256": "8e5a81c0461ca9755ac387727311c1c965f435e6d9078ac6acbb68897ec6643a"
+    },
+    {
+      "bytes": 33724416,
+      "path": "BioCAP/BioCAPTextEmbeddings.f32",
+      "sha256": "32d03fccb6d70abbf81aaafd320813c0346a670cf95221685ff3098719b6e1ca"
+    },
+    {
+      "bytes": 113705,
+      "path": "BioCAP/Models/BioCAPVisionEncoder.mlpackage/Data/com.apple.CoreML/model.mlmodel",
+      "sha256": "96ec18e0edbff0be5d416f732103f9ff798f6068215b62aef1b10dd2e2126acd"
+    },
+    {
+      "bytes": 172396160,
+      "path": "BioCAP/Models/BioCAPVisionEncoder.mlpackage/Data/com.apple.CoreML/weights/weight.bin",
+      "sha256": "4289d346b6cf7a549fb3637b68195d87316620ec67294b2e66082abac7da4d50"
+    },
+    {
+      "bytes": 617,
+      "path": "BioCAP/Models/BioCAPVisionEncoder.mlpackage/Manifest.json",
+      "sha256": "27a726d9b14504034cfb797c5a9c4b33baf06fb424c6afb836232ded52254767"
+    },
+    {
+      "bytes": 39445,
+      "path": "BioCAP/TestFixtures/BioCAPFixture.jpg",
+      "sha256": "217dc19fbedec67d875f6295b8a018565725ac60a42b6e7e77bba8de44a07bad"
+    },
+    {
+      "bytes": 260,
+      "path": "BioCAP/TestFixtures/BioCAPFixture.json",
+      "sha256": "a835ae0c079fe1ec04315ba45370995986426cab808381ad9a91bb49e4a0f5d6"
+    }
+  ],
+  "gcsURI": "gs://fieldnotes-biocap/ios-assets/nc-regional-birdnet-travel-v2/fieldnotes-biocap-nc-regional-birdnet-travel-v2.tar.gz",
+  "gcsObject": {
+    "crc32c": "W6ilPw==",
+    "generation": "1783684870447729",
+    "md5": "vt6rQO5h4tbWUaP45qoGaQ==",
+    "uploadType": "non-composite"
+  },
+  "schemaVersion": 1
+}

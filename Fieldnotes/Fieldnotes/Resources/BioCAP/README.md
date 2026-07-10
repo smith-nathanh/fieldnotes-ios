@@ -58,6 +58,16 @@ cold fixture run. Keep CPU-only for cross-runtime correctness and measured devic
 performance unless a future export changes those results. Accuracy should also be
 measured before changing quantization.
 
+The generated files in this directory are ignored by Git. Restore the pinned
+production bundle after a fresh checkout with:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/install_ios_assets.py
+```
+
+The installer verifies the tracked archive and every installed file before
+replacing the local resources.
+
 ## Related Tooling
 
 The workstation validation/export tooling lives in:

@@ -29,6 +29,35 @@ The requirements intentionally pin Torch to the newest version tested by
 coremltools for this converter path. Newer Torch releases may trace attention
 into frontend ops that coremltools cannot lower.
 
+## Install the Versioned iOS Assets
+
+Generated model and catalog files are intentionally ignored by Git. A fresh
+checkout can install the exact production bundle from GCS with:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/install_ios_assets.py
+```
+
+The tracked `assets/nc-regional-birdnet-travel-v2.json` manifest verifies the
+191,588,494-byte archive SHA-256, rejects unexpected archive members, then
+verifies the size and SHA-256 of all eight model, catalog, and fixture files.
+Pass `--archive` to verify and install an existing download without GCS access.
+
+To package a future validated release:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/package_ios_assets.py \
+  --input-dir Fieldnotes/Fieldnotes/Resources/BioCAP \
+  --version nc-regional-birdnet-travel-v2 \
+  --gcs-uri gs://fieldnotes-biocap/ios-assets/nc-regional-birdnet-travel-v2/fieldnotes-biocap-nc-regional-birdnet-travel-v2.tar.gz \
+  --archive tmp/biocap-ios-assets/fieldnotes-biocap-nc-regional-birdnet-travel-v2.tar.gz \
+  --manifest tools/biocap/assets/nc-regional-birdnet-travel-v2.json
+```
+
+Use a normal non-composite GCS upload for this distributable. The tracked
+production object has GCS CRC32C and MD5 metadata in addition to the
+installer-enforced SHA-256.
+
 ## North Carolina Product Baseline
 
 The versioned `nc-v1` benchmark is the product-facing field-animal baseline. Its
