@@ -1,0 +1,102 @@
+{
+  "artifacts": {
+    "float16Archive": {
+      "bytes": 51203552,
+      "matrixBytes": 54028288,
+      "sha256": "48e976662cc2c10be625ee33a8b0f948e5454a8a27ed133cf2b65a906c8f65b0"
+    },
+    "float32Archive": {
+      "bytes": 101657155,
+      "matrixBytes": 108056576,
+      "sha256": "da32bb147dad2b3baa775dc1f584b0a95f21de93628b3bde39a06389ce5b0e54"
+    },
+    "sourceSpecies": {
+      "bytes": 35559460,
+      "sha256": "c1bb066d31ba9a4635a6f609cecce831e1fb0f643849ce5192a1bf9bf36ba785"
+    }
+  },
+  "catalogVersion": "us-regional-v1",
+  "cloudJob": {
+    "accelerator": "NVIDIA L4 spot",
+    "managedJobID": 1,
+    "recoveries": 2,
+    "shardCount": 104,
+    "status": "SUCCEEDED"
+  },
+  "float16Parity": {
+    "maximumAbsoluteElementError": 0.000244140625,
+    "maximumScoreDelta": 0.00007803738117218018,
+    "orderedTop10Matches": 58,
+    "orderedTop10Parity": 0.9666666666666667,
+    "queryCount": 60,
+    "rowCosineMinimum": 0.9999997615814209,
+    "top1Matches": 60,
+    "top1Parity": 1.0,
+    "top10SetMatches": 60,
+    "top10SetParity": 1.0
+  },
+  "float32Integrity": {
+    "archiveOrderMatchesSource": true,
+    "dtype": "float32",
+    "embeddingDim": 512,
+    "finite": true,
+    "labelTextType": "scientific",
+    "maximumNormError": 1.7881393432617188e-7,
+    "model": "hf-hub:imageomics/biocap",
+    "normMaximum": 1.0000001192092896,
+    "normMinimum": 0.9999998211860657,
+    "promptPreset": "biocap-openai",
+    "promptTemplateCount": 81,
+    "speciesCount": 52762,
+    "uniqueScientificNames": 52762,
+    "workerSpeciesCopyMatchesSource": true
+  },
+  "ncV1Benchmark": {
+    "catalogCoverage": 1.0,
+    "familyTop1": 0.8,
+    "familyTop3": 0.8833333333333333,
+    "familyTop10": 0.95,
+    "flatRanking": {
+      "meanReciprocalRank": 0.5163630849459409,
+      "speciesTop1": 0.4,
+      "speciesTop3": 0.5833333333333334,
+      "speciesTop10": 0.8166666666666667
+    },
+    "genusTop1": 0.7,
+    "genusTop3": 0.7833333333333333,
+    "genusTop10": 0.8833333333333333,
+    "images": 60,
+    "northCarolinaSoftBoostSweep": {
+      "0.005": {
+        "meanReciprocalRank": 0.5730481064524139,
+        "speciesTop1": 0.4666666666666667,
+        "speciesTop3": 0.6166666666666667,
+        "speciesTop10": 0.8166666666666667
+      },
+      "0.020": {
+        "meanReciprocalRank": 0.6325816062018513,
+        "speciesTop1": 0.5166666666666667,
+        "speciesTop3": 0.7,
+        "speciesTop10": 0.85
+      },
+      "0.030": {
+        "meanReciprocalRank": 0.6846631548327143,
+        "speciesTop1": 0.5833333333333334,
+        "speciesTop3": 0.7666666666666667,
+        "speciesTop10": 0.8833333333333333
+      }
+    },
+    "scoreMeanMilliseconds": 3.1917847498940923,
+    "southeastSoftBoost005": {
+      "meanReciprocalRank": 0.5458423034604916,
+      "speciesTop1": 0.43333333333333335,
+      "speciesTop3": 0.6,
+      "speciesTop10": 0.8166666666666667
+    }
+  },
+  "promotionDecision": {
+    "float16": "Ranking parity is acceptable, but float32 remains canonical because its app-size cost is modest and avoids adding a second runtime storage path.",
+    "usCatalog": "Do not promote flat U.S. assets yet. State-aware soft reranking must be implemented and validated on independent regional cases before replacing the 16,467-row NC-focused bundle."
+  },
+  "schemaVersion": 1
+}

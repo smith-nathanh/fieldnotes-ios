@@ -186,6 +186,22 @@ reporting element error, row-norm/cosine drift, top-1 parity, ordered top-10
 parity, and top-10 candidate-set parity. Float16 remains a candidate until those
 real-photo results pass; the app continues to use canonical float32 by default.
 
+The completed U.S. run produced 104 resumable shards and recovered twice after
+spot preemptions following shards 96 and 100. The canonical 52,762 x 512 float32
+matrix matches the pinned scientific-name order exactly, contains no non-finite values, and has
+unit norms within 1.8e-7. Float16 preserved all 60 top-1 results and all 60
+top-10 candidate sets; two queries reordered near-tied candidates within their
+top ten.
+
+Flat U.S. ranking on `nc-v1` reached 40.0%/58.3%/81.7% species top-1/top-3/top-10,
+below the NC-focused catalog's 60.0%/76.7%/90.0%. The current +0.005 Southeast
+boost improved top-1 only to 43.3%. An exact NC membership boost improved more,
+reaching 58.3%/76.7%/88.3% at +0.030, but that strength is not promoted from the
+same 60 tuning images. Keep the current production bundle until state-aware
+reranking is implemented and checked on independent regional data. Compact
+checksums, integrity metrics, float16 parity, and the boost sweep are in
+`evaluation/us-regional-v1-baseline.json`.
+
 ### Local U.S. catalog storage
 
 The full command above pulls data directly from iNaturalist's
