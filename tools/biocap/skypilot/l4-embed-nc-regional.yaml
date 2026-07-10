@@ -1,0 +1,84 @@
+name: fieldnotes-biocap-l4-embed-nc-regional
+
+resources:
+  cloud: gcp
+  accelerators: L4:1
+  image_id: projects/deeplearning-platform-release/global/images/common-cu129-ubuntu-2204-nvidia-580-v20260527
+  memory: 32+
+  disk_size: 128
+  use_spot: true
+  any_of:
+    - region: us-east4
+    - region: us-central1
+    - region: us-east5
+    - region: us-west1
+    - region: us-west4
+  autostop:
+    idle_minutes: 10
+    down: true
+
+workdir: tools/biocap
+
+file_mounts:
+  ~/sky_workdir/tmp/nc-regional-v1/species.jsonl: ./tmp/biocap-catalogs/nc-regional-v1/species.jsonl
+  /gcs/fieldnotes-biocap:
+    source: gs://fieldnotes-biocap
+    mode: MOUNT
+
+envs:
+  BIOCAP_SPECIES_LIST: tmp/nc-regional-v1/species.jsonl
+  BIOCAP_OUTPUT_DIR: /gcs/fieldnotes-biocap/nc-regional-v1-biocap-openai-float32
+  BIOCAP_EMBEDDING_DTYPE: float32
+  BIOCAP_PROMPT_PRESET: biocap-openai
+  BIOCAP_LABEL_TEXT_TYPE: scientific
+  BIOCAP_BATCH_SIZE: 512
+  BIOCAP_SPECIES_BATCH_SIZE: 512
+
+setup: |
+  set -euo pipefail
+
+  sudo apt-get update -y
+  sudo apt-get install -y --no-upgrade curl git build-essential python3-dev python3-pip
+
+  if ! command -v uv >/dev/null 2>&1; then
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+  fi
+  export PATH="$HOME/.cargo/bin:$PATH"
+
+  cd ~/sky_workdir
+  rm -rf .venv
+  uv venv --python 3.12
+  source .venv/bin/activate
+
+  uv pip install --torch-backend=cu128 torch==2.7.0 torchvision==0.22.0
+  uv pip install -r requirements.txt
+
+  nvidia-smi
+  python - <<'PY'
+  import sys
+  import torch
+  print(f"PyTorch version: {torch.__version__}")
+  print(f"CUDA available: {torch.cuda.is_available()}")
+  print(f"CUDA runtime version: {torch.version.cuda}")
+  if torch.cuda.is_available():
+      print(f"GPU detected: {torch.cuda.get_device_name(0)}")
+      sys.exit(0)
+  print("ERROR: CUDA device not available to PyTorch.")
+  sys.exit(1)
+  PY
+
+run: |
+  set -euo pipefail
+
+  cd ~/sky_workdir
+  source .venv/bin/activate
+
+  uv run --python .venv/bin/python embed_biocap_text.py \
+    --species-list "$BIOCAP_SPECIES_LIST" \
+    --output-dir "$BIOCAP_OUTPUT_DIR" \
+    --embedding-dtype "$BIOCAP_EMBEDDING_DTYPE" \
+    --prompt-preset "$BIOCAP_PROMPT_PRESET" \
+    --label-text-type "$BIOCAP_LABEL_TEXT_TYPE" \
+    --batch-size "$BIOCAP_BATCH_SIZE" \
+    --species-batch-size "$BIOCAP_SPECIES_BATCH_SIZE" \
+    --device cuda

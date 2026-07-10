@@ -1,0 +1,40 @@
+{
+  "pilotID": "nc-v1-uncertainty-2026-07-10",
+  "dataset": {
+    "images": 60,
+    "version": "nc-v1"
+  },
+  "catalogVersion": "nc-regional-birdnet-travel-v2",
+  "policy": {
+    "exactSpeciesMargin": 0.035,
+    "contenderDelta": 0.02,
+    "northCarolinaRegionalBoost": 0.005,
+    "rawSimilarityIsCalibratedProbability": false
+  },
+  "outcomes": {
+    "species": 9,
+    "genus": 9,
+    "family": 7,
+    "uncertain": 35
+  },
+  "speciesDecision": {
+    "coverage": 0.15,
+    "precision": 0.8888888888888888
+  },
+  "supportedRankDecision": {
+    "coverage": 0.4166666666666667,
+    "accuracyAtSuggestedRank": 0.88
+  },
+  "northCarolinaPrior": {
+    "top1ChangesWithinAvailableTop10": 1,
+    "rawTop1Accuracy": 0.6,
+    "contextualTop1Accuracy": 0.6,
+    "top1AccuracyDelta": 0.0
+  },
+  "detailedReportSHA256": "b47b65ba809c232042731ef12d9c51cb386b981af54c83c0353c05c18cee1dc4",
+  "limitations": [
+    "The policy was selected and measured on the same 60-image pilot set; it is not held-out calibration.",
+    "The dataset contains animals only, so out-of-catalog rejection cannot be measured here.",
+    "Taxon-specific thresholds and seasonal priors are not yet implemented."
+  ]
+}

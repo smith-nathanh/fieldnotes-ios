@@ -1,0 +1,54 @@
+{
+  "catalogVersion": "nc-regional-birdnet-travel-v2",
+  "strategy": "North Carolina regional catalog plus taxonomy-validated BirdNET-linked travel fallback",
+  "speciesCount": 16467,
+  "regionalRows": 10494,
+  "selectedFallbackRows": 6464,
+  "overlapRows": 491,
+  "fallbackOnlyRows": 5973,
+  "embeddingArchiveSHA256": "4ec8f5c7c7f0d8f3cc6dd094e6a953c340ad38d36247227677110562d90fe9d3",
+  "speciesListSHA256": "5dbfd6afb7454291c76e7e5b207597c4490d7e557f89578c73d0783f55e3fc7f",
+  "integrity": {
+    "duplicateScientificNames": 0,
+    "exactEmbeddingSpeciesOrder": true,
+    "finiteRows": true,
+    "maximumRowNorm": 1.0000001192092896,
+    "minimumRowNorm": 0.9999998807907104,
+    "rowsMissingKingdom": 0,
+    "excludedUnresolvedFallbackRows": 58,
+    "excludedKnownAudioEventLabels": 10
+  },
+  "candidateIOSAssets": {
+    "totalBytes": 215059842,
+    "rawEmbeddingBytes": 33724416,
+    "metadataBytes": 8824723,
+    "regionalTierRows": 10494,
+    "travelFallbackTierRows": 5973,
+    "embeddingSHA256": "32d03fccb6d70abbf81aaafd320813c0346a670cf95221685ff3098719b6e1ca",
+    "metadataSHA256": "8e5a81c0461ca9755ac387727311c1c965f435e6d9078ac6acbb68897ec6643a",
+    "configSHA256": "d2e5fa40629230a0f049a89fb4a01e5a613193a2e74df90a694d1f3bbd502740"
+  },
+  "frozenNCBenchmark": {
+    "catalogCoverage": 1.0,
+    "speciesTop1": 0.6,
+    "speciesTop3": 0.7666666666666667,
+    "speciesTop10": 0.9,
+    "meanReciprocalRank": 0.7009452260012349,
+    "genusTop1": 0.75,
+    "familyTop1": 0.8166666666666667,
+    "scoreMeanMs": 0.9535861589635412,
+    "detailedReportSHA256": "ec1ff0ace948e2788defc8fdf577601f0bb1ce7a333ae1e93f721800f5825bfa"
+  },
+  "comparisonToRegionalOnly": {
+    "speciesTop1Delta": 0.0,
+    "speciesTop3Delta": 0.0,
+    "speciesTop10Delta": 0.0,
+    "meanReciprocalRankDelta": -0.0003574504121426,
+    "scoreMeanMsDelta": 0.3339473196926216
+  },
+  "limitations": [
+    "Travel fallback is strongest for birds and other BirdNET-supported taxa; it is not a complete worldwide animal catalog.",
+    "The 58 unresolved labels were excluded rather than silently exported without taxonomy; these include audio events and obsolete scientific names.",
+    "The candidate was exported under ignored tmp paths and has not replaced production app resources."
+  ]
+}

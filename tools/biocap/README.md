@@ -29,6 +29,98 @@ The requirements intentionally pin Torch to the newest version tested by
 coremltools for this converter path. Newer Torch releases may trace attention
 into frontend ops that coremltools cannot lower.
 
+## North Carolina Product Baseline
+
+The versioned `nc-v1` benchmark is the product-facing field-animal baseline. Its
+definition freezes exact iNaturalist observation/photo IDs for 30 taxa across
+Charlotte/Piedmont, the mountains, and the coast. It covers 15 animal groups.
+It measures catalog coverage when labels are absent, but it is not a negative
+open-set benchmark because every input is an animal photo.
+Images remain ignored under `tmp/`; attribution metadata is retained beside
+them. Review iNaturalist terms and the individual photo licenses before running:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/prepare_nc_evaluation.py \
+  --accept-terms \
+  --output-dir tmp/biocap-datasets/nc-v1
+```
+
+Classify the frozen set against the untouched 72,574-row catalog:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/classify_biocap_cached.py \
+  --embeddings tmp/biocap-validation/cloud-l4-animal-only/biocap_text_embeddings.npz \
+  --species-list tmp/biocap-validation/cloud-l4-animal-only/image-field-animals-no-plants-fungi-species.jsonl \
+  --image-manifest tmp/biocap-datasets/nc-v1/benchmark_manifest.jsonl \
+  --device cpu \
+  --top-k 10 \
+  --output tmp/biocap-validation/nc-v1-global-72574/rankings.csv \
+  --report tmp/biocap-validation/nc-v1-global-72574/baseline_report.json
+```
+
+The runner refuses to score an archive whose embedded scientific-name order
+does not exactly match the species list. Its report separates overall accuracy
+from accuracy among in-catalog labels, because missing species must count as a
+product failure. It also reports genus/family accuracy, reciprocal rank,
+group/region slices, forced predictions on out-of-catalog images, timing, and
+process peak RSS. The checked-in compact result is
+`evaluation/nc-v1-baseline-72574.json`; detailed per-image output remains under
+ignored `tmp/`.
+
+Build the source-derived regional catalog candidate:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/build_inaturalist_regional_catalog.py \
+  --output tmp/biocap-catalogs/nc-regional-v1/species.jsonl \
+  --report tmp/biocap-catalogs/nc-regional-v1/report.json
+```
+
+The catalog definition freezes North Carolina place ID 30, a 2026-06-30
+cutoff, research-grade observations, and all animal iconic taxa. API pages and
+taxonomy batches are cached under ignored `tmp/` paths. The checked-in audit is
+`catalogs/nc-regional-v1-report.json`.
+
+To build the optional travel tier, first enrich missing hierarchy in the older
+global species list, then merge only BirdNET-linked rows that have validated
+taxonomy:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/enrich_fallback_taxonomy.py \
+  --species-list tmp/biocap-validation/cloud-l4-animal-only/image-field-animals-no-plants-fungi-species.jsonl \
+  --inaturalist-map tmp/biocap-validation/cloud-l4-animal-only/inaturalist-common-names.jsonl \
+  --output tmp/biocap-catalogs/fallback-taxonomy/image-field-animals-enriched.jsonl \
+  --report tmp/biocap-catalogs/fallback-taxonomy/report.json
+
+uv run --python .venv-biocap/bin/python tools/biocap/merge_biocap_embedding_catalogs.py \
+  --regional-embeddings tmp/biocap-catalogs/nc-regional-v1/embeddings-biocap-openai-f32/biocap_text_embeddings.npz \
+  --regional-species tmp/biocap-catalogs/nc-regional-v1/embeddings-biocap-openai-f32/species.jsonl \
+  --fallback-embeddings tmp/biocap-validation/cloud-l4-animal-only/biocap_text_embeddings.npz \
+  --fallback-species tmp/biocap-catalogs/fallback-taxonomy/image-field-animals-enriched.jsonl \
+  --fallback-source birdnet-audio-labels \
+  --require-fallback-hierarchy \
+  --output-dir tmp/biocap-catalogs/nc-regional-birdnet-travel-v2
+```
+
+The hierarchy requirement intentionally rejects unresolved legacy names and
+non-image BirdNET events instead of silently putting them into the image catalog.
+The checked-in audit is
+`catalogs/nc-regional-birdnet-travel-v2-report.json`.
+
+Audit the conservative rank/uncertainty pilot against the frozen results:
+
+```sh
+uv run --python .venv-biocap/bin/python tools/biocap/analyze_biocap_uncertainty.py \
+  --benchmark-report tmp/biocap-validation/nc-v1-regional-birdnet-travel-v2/baseline_report.json \
+  --species-list tmp/biocap-catalogs/nc-regional-birdnet-travel-v2/species.jsonl \
+  --image-manifest tmp/biocap-datasets/nc-v1/benchmark_manifest.jsonl \
+  --output tmp/biocap-validation/nc-v1-regional-birdnet-travel-v2/uncertainty_report.json
+```
+
+This reports exact-species precision/coverage, genus/family consensus outcomes,
+and the effect of the positive-only NC prior. It does not claim calibrated
+probability or open-set rejection; `nc-v1` has only 60 animal images, so a
+larger independent set with non-animal cases is still required.
+
 ## Build a Candidate List
 
 For real field-photo validation, the most practical path is a small local
@@ -336,7 +428,7 @@ Result:
 }
 ```
 
-Run the open-set validation:
+Run the closed-set BirdNET-overlap validation:
 
 ```sh
 uv run --python .venv-biocap/bin/python tools/biocap/validate_biocap.py \

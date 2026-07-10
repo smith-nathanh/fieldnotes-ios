@@ -1,0 +1,54 @@
+{
+  "baselineID": "nc-v1-regional-10494-2026-07-10",
+  "catalog": {
+    "embeddingArchiveSHA256": "39582a8cfd32454607c11c25e722729e7f089dcca4f1f6e3b0669984ba2a0385",
+    "embeddingArchiveBytes": 20250166,
+    "speciesCount": 10494,
+    "speciesListSHA256": "157718b338e70d5aadfdea42c7d5a91ec07ad758faa1b47296d468648112cb18",
+    "embeddingShape": [10494, 512],
+    "embeddingDtype": "float32",
+    "promptPreset": "biocap-openai",
+    "promptTemplateCount": 81,
+    "labelTextType": "scientific"
+  },
+  "dataset": {
+    "images": 60,
+    "taxa": 30,
+    "version": "nc-v1"
+  },
+  "metrics": {
+    "catalogCoverage": 1.0,
+    "familyTop1": 0.8166666666666667,
+    "familyTop3": 0.9166666666666666,
+    "familyTop10": 0.95,
+    "genusTop1": 0.75,
+    "genusTop3": 0.8833333333333333,
+    "genusTop10": 0.9166666666666666,
+    "meanReciprocalRankAll": 0.7013026764133775,
+    "speciesTop1All": 0.6,
+    "speciesTop3All": 0.7666666666666667,
+    "speciesTop10All": 0.9
+  },
+  "comparisonToGlobal72574": {
+    "catalogCoverageDelta": 0.5666666666666667,
+    "speciesTop1Delta": 0.4833333333333333,
+    "speciesTop3Delta": 0.5166666666666667,
+    "speciesTop10Delta": 0.5833333333333334,
+    "genusTop1Delta": 0.4166666666666667,
+    "familyTop1Delta": 0.45
+  },
+  "workstationPerformance": {
+    "encodeMeanMs": 30.449545829712104,
+    "peakRSSBytes": 1626144768,
+    "scoreMeanMs": 0.6196388392709196,
+    "scoreP95Ms": 0.6179285468533635
+  },
+  "integrity": {
+    "duplicateScientificNames": 0,
+    "exactEmbeddingSpeciesOrder": true,
+    "finiteRows": true,
+    "maximumRowNorm": 1.0000001192092896,
+    "minimumRowNorm": 0.9999998807907104
+  },
+  "detailedLocalReportSHA256": "7adafacaab6c486e24c02c32cab14e5d4644ce7e59b60e8a23f3e86384bea580"
+}

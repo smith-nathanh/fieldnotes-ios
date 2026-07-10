@@ -1,0 +1,45 @@
+{
+  "catalogVersion": "nc-regional-birdnet-travel-v1",
+  "strategy": "North Carolina regional catalog plus existing BirdNET-linked global travel fallback",
+  "speciesCount": 16524,
+  "regionalRows": 10494,
+  "selectedFallbackRows": 6522,
+  "overlapRows": 492,
+  "fallbackOnlyRows": 6030,
+  "embeddingArchiveSHA256": "af1aebb572634d7c3f5e24f11720ce98cda9a1177bb2a8625de0684087a9e03b",
+  "speciesListSHA256": "dba95c3ef70b6ea7e53226e6d5fc61c94acefeb72d5833dc35334fac95501159",
+  "candidateIOSAssets": {
+    "totalBytes": 215141660,
+    "rawEmbeddingBytes": 33841152,
+    "metadataBytes": 8789805,
+    "regionalTierRows": 10494,
+    "travelFallbackTierRows": 6030,
+    "rowsWithKingdomHierarchy": 16261,
+    "embeddingSHA256": "924a312b826c90679672b232498c26ef77b90933cbec7297721553ae090057f6",
+    "metadataSHA256": "2304acaf84afb61ae36acf10cc94d6dedafb2568669ac3d3992be5f5d8c39dc0",
+    "configSHA256": "f059ca19a4037060f4e4b65e3642a8396251371e088fa447412a949b4f1be237"
+  },
+  "frozenNCBenchmark": {
+    "catalogCoverage": 1.0,
+    "speciesTop1": 0.6,
+    "speciesTop3": 0.7666666666666667,
+    "speciesTop10": 0.9,
+    "meanReciprocalRank": 0.7009173971346176,
+    "genusTop1": 0.75,
+    "familyTop1": 0.8166666666666667,
+    "scoreMeanMs": 0.9415881320213279,
+    "detailedReportSHA256": "bea3f46a4ac05be51891a08632c95721802000e2ee2f7d70293169c00ca73b1a"
+  },
+  "comparisonToRegionalOnly": {
+    "speciesTop1Delta": 0.0,
+    "speciesTop3Delta": 0.0,
+    "speciesTop10Delta": 0.0,
+    "meanReciprocalRankDelta": -0.0003852792787598647,
+    "scoreMeanMsDelta": 0.3219492927504083
+  },
+  "limitations": [
+    "Travel fallback is strongest for birds and other BirdNET-supported taxa; it is not a complete worldwide animal catalog.",
+    "263 fallback metadata rows still lack kingdom hierarchy and require source enrichment before production export is final.",
+    "The candidate was exported under ignored tmp paths and has not replaced production app resources."
+  ]
+}

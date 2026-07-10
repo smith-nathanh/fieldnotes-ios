@@ -1,0 +1,80 @@
+{
+  "baselineID": "nc-v1-global-72574-2026-07-09",
+  "catalog": {
+    "embeddingArchiveSHA256": "47e18c88dd71f2130a73847759f4e17d9334a5f25389fc04a6aaf28480572fde",
+    "speciesCount": 72574,
+    "speciesListSHA256": "479e5d9d9dbea2c7664c005e820f5577599edef351004ecbee6946cb5976dc48"
+  },
+  "dataset": {
+    "definitionSHA256": "b638d979b26a8ebce1e880983b18a69eba7cb9d79722d18d228b12be9bcfe106",
+    "images": 60,
+    "manifestSHA256": "f1206f1ce055495734b10ebc215e96c91033c961205510ae7fc480669f1041e7",
+    "taxa": 30,
+    "version": "nc-v1"
+  },
+  "metrics": {
+    "catalogCoverage": 0.43333333333333335,
+    "familyTop1": 0.36666666666666664,
+    "familyTop3": 0.4,
+    "familyTop10": 0.43333333333333335,
+    "forcedPredictionRateOnOutOfCatalog": 1.0,
+    "genusTop1": 0.3333333333333333,
+    "genusTop3": 0.4,
+    "genusTop10": 0.45,
+    "meanReciprocalRankAll": 0.19815832026358343,
+    "meanReciprocalRankInCatalog": 0.4572884313775002,
+    "speciesTop1All": 0.11666666666666667,
+    "speciesTop1InCatalog": 0.2692307692307692,
+    "speciesTop3All": 0.25,
+    "speciesTop3InCatalog": 0.5769230769230769,
+    "speciesTop10All": 0.31666666666666665,
+    "speciesTop10InCatalog": 0.7307692307692307
+  },
+  "catalogCoverageByGroup": {
+    "amphibian": 1.0,
+    "bee_wasp": 0.0,
+    "beetle": 0.5,
+    "bird": 1.0,
+    "butterfly_moth": 0.0,
+    "crab": 0.0,
+    "dragonfly": 1.0,
+    "fish": 0.0,
+    "fly": 0.0,
+    "mammal": 1.0,
+    "mollusk": 0.0,
+    "orthopteran": 1.0,
+    "reptile": 1.0,
+    "spider": 0.0,
+    "true_bug": 0.0
+  },
+  "performance": {
+    "device": "macOS CPU workstation",
+    "encodeMeanMs": 33.50107984151691,
+    "encodeP50Ms": 32.38864557351917,
+    "encodeP95Ms": 37.1504690265283,
+    "modelLoadMs": 1322.9022498708218,
+    "peakProcessRSSBytes": 1974648832,
+    "scoreMeanMs": 4.604438851432254,
+    "scoreP50Ms": 4.494208609685302,
+    "scoreP95Ms": 5.455691576935351,
+    "shippedBioCAPResourceBytes": 331223841,
+    "physicalIPhoneFixture": {
+      "computeUnits": "cpuOnly",
+      "device": "iPhone 17 Pro, iOS 26.5.1",
+      "iterations": 3,
+      "peakPhysicalMemoryKBMean": 200055.285,
+      "top1ParityPassed": true,
+      "warmClassificationSecondsMean": 6.132,
+      "warmClassificationSecondsValues": [
+        6.045992,
+        6.113482,
+        6.23659
+      ]
+    }
+  },
+  "limitations": [
+    "This core set contains natural field photos but does not yet satisfy every planned hard-case and non-animal stratum.",
+    "Per-stage encoding/scoring timing and process RSS are workstation measurements; the physical-iPhone metric measures the full warm classify call on one bundled fixture.",
+    "The current app always returns candidates, so out-of-catalog rejection is intentionally recorded as a 100% forced-prediction rate."
+  ]
+}

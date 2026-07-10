@@ -1,0 +1,27 @@
+{
+  "smokeID": "macos-system-negative-v1-2026-07-10",
+  "catalogVersion": "nc-regional-birdnet-travel-v2",
+  "images": 9,
+  "sources": [
+    "macOS bundled wallpaper",
+    "macOS bundled icons and rendering textures"
+  ],
+  "topSimilarity": {
+    "minimum": 0.31675195693969727,
+    "mean": 0.3361804650889503,
+    "maximum": 0.3579234480857849
+  },
+  "top1Top2Margin": {
+    "minimum": 0.002284526824951172,
+    "mean": 0.008996526400248209,
+    "maximum": 0.015530019998550415
+  },
+  "exactSpeciesFalseAcceptsAtMargin0035": 0,
+  "uncertainOutcomesAtMargin0035": 9,
+  "detailedReportSHA256": "d15f53787fbf1a71dbf77ac2cb529a815265d4a2b44b63ca445b4d2828b66ef2",
+  "limitations": [
+    "This is a local smoke test whose source files depend on the installed macOS version.",
+    "The images are scenery, icons, and rendering textures rather than representative phone photos of everyday objects.",
+    "Nine negatives are insufficient to calibrate or validate an out-of-catalog decision."
+  ]
+}

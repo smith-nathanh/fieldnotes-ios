@@ -1,0 +1,19 @@
+{
+  "catalogVersion": "nc-regional-v1",
+  "description": "Research-grade animal species observed in North Carolina, for Charlotte/Piedmont, mountain, and coast coverage.",
+  "source": "iNaturalist observations/species_counts and taxa APIs",
+  "placeID": 30,
+  "cutoffDate": "2026-06-30",
+  "minimumResearchObservations": 1,
+  "iconicTaxa": [
+    "Actinopterygii",
+    "Amphibia",
+    "Animalia",
+    "Arachnida",
+    "Aves",
+    "Insecta",
+    "Mammalia",
+    "Mollusca",
+    "Reptilia"
+  ]
+}

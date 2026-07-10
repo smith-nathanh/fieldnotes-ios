@@ -1,0 +1,53 @@
+{
+  "catalogVersion": "nc-regional-v1",
+  "catalogDefinitionSHA256": "2dbc1a43e72fb707a2899614b65534b90363e1f2a55c15154934aaff85f47185",
+  "generatedSpeciesJSONLSHA256": "157718b338e70d5aadfdea42c7d5a91ec07ad758faa1b47296d468648112cb18",
+  "cutoffDate": "2026-06-30",
+  "placeID": 30,
+  "speciesCount": 10494,
+  "benchmarkTaxaCovered": 30,
+  "benchmarkTaxaTotal": 30,
+  "commonNameCoverage": 6826,
+  "commonNameCoverageRate": 0.6502763483895559,
+  "overlapWithCurrent72574": 2414,
+  "regionalSpeciesMissingFromCurrent72574": 8080,
+  "estimatedFloat32EmbeddingBytes": 21491712,
+  "sourceJSONLBytes": 4792211,
+  "productTaxa": {
+    "amphibian": 108,
+    "animal": 384,
+    "arachnid": 467,
+    "bird": 455,
+    "crustacean": 188,
+    "fish": 432,
+    "insect": 7883,
+    "mammal": 93,
+    "mollusk": 396,
+    "reptile": 88
+  },
+  "majorOrders": {
+    "Araneae": 381,
+    "Coleoptera": 1770,
+    "Decapoda": 124,
+    "Diptera": 1159,
+    "Hemiptera": 1120,
+    "Hymenoptera": 798,
+    "Lepidoptera": 2442,
+    "Odonata": 172,
+    "Orthoptera": 168
+  },
+  "missingCanonicalRanks": {
+    "kingdom": 0,
+    "phylum": 0,
+    "class": 14,
+    "order": 42,
+    "family": 2,
+    "genus": 0,
+    "species": 0
+  },
+  "notes": [
+    "Missing class values are primarily flatworms for which the source hierarchy has no canonical class rank.",
+    "The regional source artifact is generated under ignored tmp/ paths; this tracked report freezes its checksum and audit results.",
+    "A travel-fallback policy has not yet been selected."
+  ]
+}

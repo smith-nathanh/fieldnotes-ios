@@ -1,0 +1,499 @@
+{
+  "datasetVersion": "nc-v1",
+  "description": "North Carolina field-photo baseline spanning Charlotte/Piedmont, mountains, and coast.",
+  "cutoffDate": "2026-06-30",
+  "iNaturalistPlaceID": 30,
+  "imagesPerTaxon": 2,
+  "regions": {
+    "piedmont": {
+      "displayName": "Charlotte / Piedmont",
+      "swlat": 34.95,
+      "swlng": -81.25,
+      "nelat": 35.55,
+      "nelng": -80.45
+    },
+    "mountains": {
+      "displayName": "North Carolina Mountains",
+      "swlat": 35,
+      "swlng": -84.35,
+      "nelat": 36.6,
+      "nelng": -81.6
+    },
+    "coast": {
+      "displayName": "North Carolina Coast",
+      "swlat": 33.75,
+      "swlng": -78.6,
+      "nelat": 36.6,
+      "nelng": -75.3
+    }
+  },
+  "requiredGroups": [
+    "bird",
+    "mammal",
+    "reptile",
+    "amphibian",
+    "fish",
+    "beetle",
+    "butterfly_moth",
+    "bee_wasp",
+    "fly",
+    "true_bug",
+    "dragonfly",
+    "orthopteran",
+    "spider",
+    "crab",
+    "mollusk"
+  ],
+  "taxa": [
+    {
+      "scientificName": "Cardinalis cardinalis",
+      "group": "bird",
+      "region": "piedmont",
+      "selections": [
+        {
+          "observationID": 37075206,
+          "photoID": 58714869
+        },
+        {
+          "observationID": 336847352,
+          "photoID": 612207278
+        }
+      ]
+    },
+    {
+      "scientificName": "Pelecanus occidentalis",
+      "group": "bird",
+      "region": "coast",
+      "selections": [
+        {
+          "observationID": 253467955,
+          "photoID": 453849254
+        },
+        {
+          "observationID": 256520571,
+          "photoID": 459948511
+        }
+      ]
+    },
+    {
+      "scientificName": "Sciurus carolinensis",
+      "group": "mammal",
+      "region": "piedmont",
+      "selections": [
+        {
+          "observationID": 194989518,
+          "photoID": 342910542
+        },
+        {
+          "observationID": 156312894,
+          "photoID": 270277540
+        }
+      ]
+    },
+    {
+      "scientificName": "Ursus americanus",
+      "group": "mammal",
+      "region": "mountains",
+      "selections": [
+        {
+          "observationID": 41770248,
+          "photoID": 66273232
+        },
+        {
+          "observationID": 44228830,
+          "photoID": 70125322
+        }
+      ]
+    },
+    {
+      "scientificName": "Anolis carolinensis",
+      "group": "reptile",
+      "region": "piedmont",
+      "selections": [
+        {
+          "observationID": 46382823,
+          "photoID": 73565701
+        },
+        {
+          "observationID": 27565991,
+          "photoID": 42904171
+        }
+      ]
+    },
+    {
+      "scientificName": "Caretta caretta",
+      "group": "reptile",
+      "region": "coast",
+      "selections": [
+        {
+          "observationID": 22678872,
+          "photoID": 35140284
+        },
+        {
+          "observationID": 321113860,
+          "photoID": 580687617
+        }
+      ]
+    },
+    {
+      "scientificName": "Ambystoma maculatum",
+      "group": "amphibian",
+      "region": "piedmont",
+      "selections": [
+        {
+          "observationID": 440361,
+          "photoID": 554458
+        },
+        {
+          "observationID": 192978903,
+          "photoID": 338898835
+        }
+      ]
+    },
+    {
+      "scientificName": "Desmognathus ocoee",
+      "group": "amphibian",
+      "region": "mountains",
+      "selections": [
+        {
+          "observationID": 111381821,
+          "photoID": 188022178
+        },
+        {
+          "observationID": 128964065,
+          "photoID": 219108724
+        }
+      ]
+    },
+    {
+      "scientificName": "Lepomis macrochirus",
+      "group": "fish",
+      "region": "piedmont",
+      "selections": [
+        {
+          "observationID": 340346792,
+          "photoID": 619340496
+        },
+        {
+          "observationID": 104842867,
+          "photoID": 175768033
+        }
+      ]
+    },
+    {
+      "scientificName": "Fundulus heteroclitus",
+      "group": "fish",
+      "region": "coast",
+      "selections": [
+        {
+          "observationID": 128942368,
+          "photoID": 219066936
+        },
+        {
+          "observationID": 372784106,
+          "photoID": 681227102
+        }
+      ]
+    },
+    {
+      "scientificName": "Lucanus elaphus",
+      "group": "beetle",
+      "region": "piedmont",
+      "selections": [
+        {
+          "observationID": 3058839,
+          "photoID": 3523535
+        },
+        {
+          "observationID": 65930236,
+          "photoID": 106197429
+        }
+      ]
+    },
+    {
+      "scientificName": "Cotinis nitida",
+      "group": "beetle",
+      "region": "piedmont",
+      "selections": [
+        {
+          "observationID": 300041776,
+          "photoID": 540584466
+        },
+        {
+          "observationID": 28511918,
+          "photoID": 44451317
+        }
+      ]
+    },
+    {
+      "scientificName": "Papilio glaucus",
+      "group": "butterfly_moth",
+      "region": "piedmont",
+      "selections": [
+        {
+          "observationID": 133937446,
+          "photoID": 228216090
+        },
+        {
+          "observationID": 154842165,
+          "photoID": 267587088
+        }
+      ]
+    },
+    {
+      "scientificName": "Actias luna",
+      "group": "butterfly_moth",
+      "region": "mountains",
+      "selections": [
+        {
+          "observationID": 120662315,
+          "photoID": 204107438
+        },
+        {
+          "observationID": 84651731,
+          "photoID": 139153846
+        }
+      ]
+    },
+    {
+      "scientificName": "Xylocopa virginica",
+      "group": "bee_wasp",
+      "region": "piedmont",
+      "selections": [
+        {
+          "observationID": 98136142,
+          "photoID": 163331004
+        },
+        {
+          "observationID": 23233703,
+          "photoID": 36001364
+        }
+      ]
+    },
+    {
+      "scientificName": "Bombus impatiens",
+      "group": "bee_wasp",
+      "region": "mountains",
+      "selections": [
+        {
+          "observationID": 41080691,
+          "photoID": 65135551
+        },
+        {
+          "observationID": 4283193,
+          "photoID": 5133425
+        }
+      ]
+    },
+    {
+      "scientificName": "Toxomerus marginatus",
+      "group": "fly",
+      "region": "piedmont",
+      "selections": [
+        {
+          "observationID": 23979634,
+          "photoID": 37090426
+        },
+        {
+          "observationID": 269874743,
+          "photoID": 485285748
+        }
+      ]
+    },
+    {
+      "scientificName": "Eristalis tenax",
+      "group": "fly",
+      "region": "mountains",
+      "selections": [
+        {
+          "observationID": 87309642,
+          "photoID": 143928275
+        },
+        {
+          "observationID": 3564164,
+          "photoID": 4139713
+        }
+      ]
+    },
+    {
+      "scientificName": "Leptoglossus phyllopus",
+      "group": "true_bug",
+      "region": "piedmont",
+      "selections": [
+        {
+          "observationID": 139981862,
+          "photoID": 239532887
+        },
+        {
+          "observationID": 143821568,
+          "photoID": 246724151
+        }
+      ]
+    },
+    {
+      "scientificName": "Oncopeltus fasciatus",
+      "group": "true_bug",
+      "region": "piedmont",
+      "selections": [
+        {
+          "observationID": 17510459,
+          "photoID": 26643791
+        },
+        {
+          "observationID": 177907936,
+          "photoID": 312011943
+        }
+      ]
+    },
+    {
+      "scientificName": "Erythemis simplicicollis",
+      "group": "dragonfly",
+      "region": "piedmont",
+      "selections": [
+        {
+          "observationID": 89855833,
+          "photoID": 148427219
+        },
+        {
+          "observationID": 313098103,
+          "photoID": 565379121
+        }
+      ]
+    },
+    {
+      "scientificName": "Libellula auripennis",
+      "group": "dragonfly",
+      "region": "coast",
+      "selections": [
+        {
+          "observationID": 311199683,
+          "photoID": 561754658
+        },
+        {
+          "observationID": 97899033,
+          "photoID": 162885303
+        }
+      ]
+    },
+    {
+      "scientificName": "Gryllus pennsylvanicus",
+      "group": "orthopteran",
+      "region": "piedmont",
+      "selections": [
+        {
+          "observationID": 142290312,
+          "photoID": 243920650
+        },
+        {
+          "observationID": 88617676,
+          "photoID": 146232180
+        }
+      ]
+    },
+    {
+      "scientificName": "Melanoplus differentialis",
+      "group": "orthopteran",
+      "region": "mountains",
+      "selections": [
+        {
+          "observationID": 16697420,
+          "photoID": 25187670
+        },
+        {
+          "observationID": 97091874,
+          "photoID": 161397530
+        }
+      ]
+    },
+    {
+      "scientificName": "Argiope aurantia",
+      "group": "spider",
+      "region": "piedmont",
+      "selections": [
+        {
+          "observationID": 13914510,
+          "photoID": 20554960
+        },
+        {
+          "observationID": 309865037,
+          "photoID": 559204936
+        }
+      ]
+    },
+    {
+      "scientificName": "Dolomedes tenebrosus",
+      "group": "spider",
+      "region": "mountains",
+      "selections": [
+        {
+          "observationID": 117290686,
+          "photoID": 198070634
+        },
+        {
+          "observationID": 130649751,
+          "photoID": 222219300
+        }
+      ]
+    },
+    {
+      "scientificName": "Callinectes sapidus",
+      "group": "crab",
+      "region": "coast",
+      "selections": [
+        {
+          "observationID": 44430358,
+          "photoID": 70444664
+        },
+        {
+          "observationID": 168663930,
+          "photoID": 292333340
+        }
+      ]
+    },
+    {
+      "scientificName": "Ocypode quadrata",
+      "group": "crab",
+      "region": "coast",
+      "selections": [
+        {
+          "observationID": 177209772,
+          "photoID": 308176312
+        },
+        {
+          "observationID": 176591316,
+          "photoID": 307033115
+        }
+      ]
+    },
+    {
+      "scientificName": "Busycon carica",
+      "group": "mollusk",
+      "region": "coast",
+      "selections": [
+        {
+          "observationID": 194542099,
+          "photoID": 341990716
+        },
+        {
+          "observationID": 347971287,
+          "photoID": 634549169
+        }
+      ]
+    },
+    {
+      "scientificName": "Mesodon thyroidus",
+      "group": "mollusk",
+      "region": "mountains",
+      "selections": [
+        {
+          "observationID": 347662497,
+          "photoID": 633929960
+        },
+        {
+          "observationID": 103322547,
+          "photoID": 172897093
+        }
+      ]
+    }
+  ]
+}

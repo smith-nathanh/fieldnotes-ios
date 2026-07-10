@@ -37,11 +37,13 @@ def parse_args() -> argparse.Namespace:
 
 def images_from_manifest(path: Path) -> list[Path]:
     images = []
+    base = path.parent
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
         record = json.loads(line)
-        images.append(Path(record["path"]))
+        image = Path(record["path"])
+        images.append(image if image.is_absolute() else base / image)
     return images
 
 
