@@ -677,10 +677,10 @@ a long cached job.
 
 ### L4 Cloud Embedding Job
 
-Use SkyPilot for the full animal-only text embedding run. The L4 config follows
-the newer GCP/autostop pattern from `~/proj/safety-reasoners` and
-`~/proj/colfastvlm`, mounts the local BioCAP wiki-species CSVs, builds the
-animal-only species list, and writes resumable text-embedding shards:
+Use the Fieldnotes SkyPilot configs for full text-embedding runs. They run the
+repo's `embed_biocap_text.py`, use a spot L4, write resumable shards to GCS, and
+automatically delete the worker after ten idle minutes. The older global
+animal-only job can still be launched with:
 
 ```sh
 sky launch -c fieldnotes-biocap-l4 tools/biocap/skypilot/l4-embed-text.yaml
@@ -704,6 +704,40 @@ The embedding job writes:
 
 The output from `embed_biocap_text.py` can be passed directly to
 `export_ios_assets.py` as `--embeddings`.
+
+For `us-regional-v1`, first upload the source catalog pinned by
+`catalogs/us-regional-v1-report.json`:
+
+```sh
+gcloud storage cp \
+  tmp/biocap-catalogs/us-regional-v1/species.jsonl \
+  gs://fieldnotes-biocap/catalogs/us-regional-v1/species.jsonl
+```
+
+Then launch the managed spot job from a persistent terminal session. The job
+reads the uploaded source rather than rebuilding it on the worker:
+
+```sh
+tmux new-session -s fieldnotes-us-biocap
+sky jobs launch -y \
+  -n fieldnotes-biocap-us-regional \
+  tools/biocap/skypilot/l4-embed-us-regional.yaml
+```
+
+The canonical float32 matrix, its exact species copy, report, and resumable
+shards are written to
+`gs://fieldnotes-biocap/us-regional-v1-biocap-openai-float32/`. Managed jobs
+recover from spot preemption; the YAML's `autostop.down: true` removes the GPU
+worker after completion. Confirm both the job and infrastructure state with:
+
+```sh
+sky jobs queue --refresh
+sky status --refresh
+```
+
+After completion there should be no live worker cluster. The managed-jobs
+controller may remain stopped in `sky status`; it is not an L4 worker and has
+its own idle autostop.
 
 Cloud run completed on 2026-07-01. The final report:
 
