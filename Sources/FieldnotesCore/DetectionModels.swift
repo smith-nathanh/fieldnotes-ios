@@ -99,6 +99,8 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
     public var locationAccuracy: Double?
     /// Groups detections captured during the same listening session (see §9.3).
     public var outingId: UUID?
+    /// Intentional multi-day collection active when this observation was saved.
+    public var tripId: UUID?
     /// Build identifier of the model that produced this detection (§9.10 re-run).
     public var modelVersion: String?
     /// True when this was the first-ever recording of the species (§9.5 life list).
@@ -120,6 +122,7 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         week: Int,
         locationAccuracy: Double? = nil,
         outingId: UUID? = nil,
+        tripId: UUID? = nil,
         modelVersion: String? = nil,
         isFirstOfSpecies: Bool = false
     ) {
@@ -138,6 +141,7 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         self.week = week
         self.locationAccuracy = locationAccuracy
         self.outingId = outingId
+        self.tripId = tripId
         self.modelVersion = modelVersion
         self.isFirstOfSpecies = isFirstOfSpecies
     }
@@ -158,6 +162,7 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         case week
         case locationAccuracy
         case outingId
+        case tripId
         case modelVersion
         case isFirstOfSpecies
     }
@@ -179,6 +184,7 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
         week = try container.decode(Int.self, forKey: .week)
         locationAccuracy = try container.decodeIfPresent(Double.self, forKey: .locationAccuracy)
         outingId = try container.decodeIfPresent(UUID.self, forKey: .outingId)
+        tripId = try container.decodeIfPresent(UUID.self, forKey: .tripId)
         modelVersion = try container.decodeIfPresent(String.self, forKey: .modelVersion)
         isFirstOfSpecies = try container.decodeIfPresent(Bool.self, forKey: .isFirstOfSpecies) ?? false
     }
@@ -188,6 +194,22 @@ public struct FieldDetection: Identifiable, Codable, Equatable, Sendable {
     public var evidenceScore: Float {
         source == .photo ? similarity ?? confidence : confidence
     }
+}
+
+public struct Trip: Identifiable, Codable, Equatable, Sendable {
+    public var id: UUID
+    public var name: String
+    public var startedAt: Date
+    public var endedAt: Date?
+
+    public init(id: UUID = UUID(), name: String, startedAt: Date = Date(), endedAt: Date? = nil) {
+        self.id = id
+        self.name = name
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+    }
+
+    public var isActive: Bool { endedAt == nil }
 }
 
 public struct Outing: Identifiable, Equatable, Sendable {

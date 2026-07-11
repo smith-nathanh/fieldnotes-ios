@@ -48,9 +48,73 @@ struct DetectionRepository: Sendable {
         }
     }
 
+    func loadTrips() async throws -> [Trip] {
+        let database = try openDatabase()
+        defer { sqlite3_close(database) }
+        try createSchema(in: database)
+
+        let sql = "SELECT id, name, started_at, ended_at FROM trips ORDER BY started_at DESC"
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
+            throw sqliteError(database, message: "Could not prepare trip load")
+        }
+        defer { sqlite3_finalize(statement) }
+
+        var trips: [Trip] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let idRaw = sqlite3_column_text(statement, 0).map({ String(cString: $0) }),
+                  let id = UUID(uuidString: idRaw),
+                  let name = sqlite3_column_text(statement, 1).map({ String(cString: $0) }),
+                  let startedRaw = sqlite3_column_text(statement, 2).map({ String(cString: $0) }),
+                  let startedAt = Self.dateFormatter.date(from: startedRaw) else {
+                throw DetectionRepositoryError.decodeFailed
+            }
+            let endedAt = sqlite3_column_text(statement, 3)
+                .map { String(cString: $0) }
+                .flatMap(Self.dateFormatter.date(from:))
+            trips.append(Trip(id: id, name: name, startedAt: startedAt, endedAt: endedAt))
+        }
+        return trips
+    }
+
+    func saveTrips(_ trips: [Trip]) async throws {
+        let database = try openDatabase()
+        defer { sqlite3_close(database) }
+        try createSchema(in: database)
+        try execute("BEGIN IMMEDIATE TRANSACTION", in: database)
+        do {
+            try execute("DELETE FROM trips", in: database)
+            let sql = "INSERT INTO trips (id, name, started_at, ended_at) VALUES (?, ?, ?, ?)"
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
+                throw sqliteError(database, message: "Could not prepare trip insert")
+            }
+            defer { sqlite3_finalize(statement) }
+            for trip in trips {
+                sqlite3_bind_text(statement, 1, trip.id.uuidString, -1, sqliteTransient)
+                sqlite3_bind_text(statement, 2, trip.name, -1, sqliteTransient)
+                sqlite3_bind_text(statement, 3, Self.dateFormatter.string(from: trip.startedAt), -1, sqliteTransient)
+                if let endedAt = trip.endedAt {
+                    sqlite3_bind_text(statement, 4, Self.dateFormatter.string(from: endedAt), -1, sqliteTransient)
+                } else {
+                    sqlite3_bind_null(statement, 4)
+                }
+                guard sqlite3_step(statement) == SQLITE_DONE else {
+                    throw sqliteError(database, message: "Could not insert trip")
+                }
+                sqlite3_reset(statement)
+                sqlite3_clear_bindings(statement)
+            }
+            try execute("COMMIT", in: database)
+        } catch {
+            try? execute("ROLLBACK", in: database)
+            throw error
+        }
+    }
+
     private func fetchDetections(in database: OpaquePointer) throws -> [FieldDetection] {
         let sql = """
-        SELECT id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week, location_accuracy, outing_id, model_version, is_first_of_species, photo_path, similarity
+        SELECT id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week, location_accuracy, outing_id, model_version, is_first_of_species, photo_path, similarity, trip_id
         FROM detections
         ORDER BY detected_at DESC
         """
@@ -164,6 +228,23 @@ struct DetectionRepository: Sendable {
             in: "detections",
             database: database
         )
+        try addColumnIfNeeded(
+            named: "trip_id",
+            definition: "TEXT",
+            in: "detections",
+            database: database
+        )
+        try execute(
+            """
+            CREATE TABLE IF NOT EXISTS trips (
+                id TEXT PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                ended_at TEXT
+            )
+            """,
+            in: database
+        )
         try execute(
             "CREATE INDEX IF NOT EXISTS idx_detections_species_seen ON detections(scientific_name, detected_at)",
             in: database
@@ -176,13 +257,17 @@ struct DetectionRepository: Sendable {
             "CREATE INDEX IF NOT EXISTS idx_detections_outing ON detections(outing_id)",
             in: database
         )
+        try execute(
+            "CREATE INDEX IF NOT EXISTS idx_detections_trip ON detections(trip_id)",
+            in: database
+        )
     }
 
     private func insert(_ detections: [FieldDetection], in database: OpaquePointer) throws {
         let sql = """
         INSERT OR REPLACE INTO detections (
-            id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week, location_accuracy, outing_id, model_version, is_first_of_species, photo_path, similarity
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, scientific_name, common_name, taxon, source, confidence, detected_at, clip_path, latitude, longitude, week, location_accuracy, outing_id, model_version, is_first_of_species, photo_path, similarity, trip_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
@@ -239,6 +324,11 @@ struct DetectionRepository: Sendable {
                 sqlite3_bind_double(statement, 17, Double(similarity))
             } else {
                 sqlite3_bind_null(statement, 17)
+            }
+            if let tripId = detection.tripId {
+                sqlite3_bind_text(statement, 18, tripId.uuidString, -1, sqliteTransient)
+            } else {
+                sqlite3_bind_null(statement, 18)
             }
 
             guard sqlite3_step(statement) == SQLITE_DONE else {
@@ -305,6 +395,10 @@ struct DetectionRepository: Sendable {
             ? nil
             : Float(sqlite3_column_double(statement, 16))
 
+        let tripId = sqlite3_column_text(statement, 17)
+            .map { String(cString: $0) }
+            .flatMap(UUID.init(uuidString:))
+
         return FieldDetection(
             id: id,
             scientificName: scientificName,
@@ -321,6 +415,7 @@ struct DetectionRepository: Sendable {
             week: Int(sqlite3_column_int(statement, 10)),
             locationAccuracy: locationAccuracy,
             outingId: outingId,
+            tripId: tripId,
             modelVersion: modelVersion,
             isFirstOfSpecies: isFirstOfSpecies
         )

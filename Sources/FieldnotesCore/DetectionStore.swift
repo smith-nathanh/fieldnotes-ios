@@ -85,6 +85,15 @@ public struct DetectionStore: Sendable {
         }
     }
 
+    @discardableResult
+    public mutating func assignTrip(_ tripId: UUID?, to detectionID: UUID) -> Bool {
+        guard let index = detections.firstIndex(where: { $0.id == detectionID }) else {
+            return false
+        }
+        detections[index].tripId = tripId
+        return true
+    }
+
     /// Groups detections captured during the same listening session into outings,
     /// most recent first. Detections without an `outingId` (e.g. photo captures)
     /// are excluded.

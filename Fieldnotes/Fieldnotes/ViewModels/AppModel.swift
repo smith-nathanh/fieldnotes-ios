@@ -39,6 +39,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var elapsedListening: TimeInterval = 0
     @Published private(set) var sessionSpeciesCount = 0
     @Published private(set) var sessionDetectionCount = 0
+    @Published private(set) var trips: [Trip] = []
 
     private var store = DetectionStore()
     private let repository: DetectionRepository
@@ -53,6 +54,7 @@ final class AppModel: ObservableObject {
     private var sessionScientificNames: Set<String> = []
     private var sessionTimer: Timer?
     private var sessionOutingId: UUID?
+    private var tripPersistenceTask: Task<Void, Never>?
     private let defaults: UserDefaults
     private let privacyFilterEnabledKey = "privacyFilterEnabled"
     private let confidenceThresholdKey = "confidenceThreshold"
@@ -98,10 +100,61 @@ final class AppModel: ObservableObject {
     func load() async {
         do {
             detections = try await repository.load()
+            trips = try await repository.loadTrips()
             store = DetectionStore(detections: detections)
             refreshDerivedState()
         } catch {
             status = "Could not load field log"
+        }
+    }
+
+    var activeTrip: Trip? {
+        trips.first(where: \.isActive)
+    }
+
+    func startTrip() {
+        guard activeTrip == nil else { return }
+        let now = Date()
+        let name = "Trip — \(now.formatted(.dateTime.month(.abbreviated).day()))"
+        trips.insert(Trip(name: name, startedAt: now), at: 0)
+        persistTrips()
+    }
+
+    func endActiveTrip() {
+        guard let id = activeTrip?.id,
+              let index = trips.firstIndex(where: { $0.id == id }) else { return }
+        trips[index].endedAt = Date()
+        persistTrips()
+    }
+
+    func renameTrip(_ trip: Trip, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let index = trips.firstIndex(where: { $0.id == trip.id }) else { return }
+        trips[index].name = trimmed
+        persistTrips()
+    }
+
+    func detections(for trip: Trip) -> [FieldDetection] {
+        detections.filter { $0.tripId == trip.id }.sorted { $0.detectedAt > $1.detectedAt }
+    }
+
+    func setTrip(_ trip: Trip?, for detectionID: UUID) {
+        guard store.assignTrip(trip?.id, to: detectionID) else { return }
+        detections = store.detections.sorted { $0.detectedAt > $1.detectedAt }
+        Task {
+            do { try await repository.save(store.detections) }
+            catch { status = "Could not update trip" }
+        }
+    }
+
+    private func persistTrips() {
+        let snapshot = trips
+        let previous = tripPersistenceTask
+        tripPersistenceTask = Task {
+            await previous?.value
+            do { try await repository.saveTrips(snapshot) }
+            catch { status = "Could not save trip" }
         }
     }
 
@@ -447,6 +500,8 @@ final class AppModel: ObservableObject {
         if detection.source == .audio, let sessionOutingId {
             detection.outingId = sessionOutingId
         }
+
+        detection.tripId = activeTrip?.id
 
         // Computed before the store records it, so it reflects prior history.
         detection.isFirstOfSpecies = !store.detections.contains {

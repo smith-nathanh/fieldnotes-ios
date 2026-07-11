@@ -25,6 +25,13 @@ struct PhotoClassifierView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
+                    TripStatusBanner(
+                        trip: model.activeTrip,
+                        locationTaggingEnabled: model.locationTaggingEnabled,
+                        onStart: model.startTrip,
+                        onEnd: model.endActiveTrip
+                    )
+
                     PhotoGeographyPicker(
                         mode: model.photoGeographyMode,
                         selectedStateCode: model.photoStateCode,

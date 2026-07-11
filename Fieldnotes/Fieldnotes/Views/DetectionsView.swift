@@ -28,6 +28,8 @@ struct DetectionsView: View {
                             header
                             if logMode == .species {
                                 speciesContent
+                            } else if logMode == .trips {
+                                tripsContent
                             } else {
                                 outingsContent
                             }
@@ -202,6 +204,28 @@ struct DetectionsView: View {
         }
     }
 
+    @ViewBuilder
+    private var tripsContent: some View {
+        if model.trips.isEmpty {
+            VStack(spacing: 18) {
+                AlmanacEmpty("No trips yet", message: "start a trip to group photos and audio across multiple days")
+                Button("Start Trip", action: model.startTrip)
+                    .buttonStyle(AlmanacSecondaryButton())
+            }
+        } else {
+            LazyVStack(spacing: 0) {
+                ForEach(model.trips) { trip in
+                    NavigationLink {
+                        TripDetailView(trip: trip)
+                    } label: {
+                        TripCard(trip: trip, detections: model.detections(for: trip))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
     private func sorted(_ summaries: [SpeciesSummary]) -> [SpeciesSummary] {
         switch sortMode {
         case .recent:
@@ -261,6 +285,7 @@ private struct FilterChipLabel: View {
 
 private enum LogMode: String, CaseIterable, Identifiable {
     case species
+    case trips
     case outings
     case map
 
@@ -270,6 +295,8 @@ private enum LogMode: String, CaseIterable, Identifiable {
         switch self {
         case .species:
             return "Species"
+        case .trips:
+            return "Trips"
         case .outings:
             return "Outings"
         case .map:

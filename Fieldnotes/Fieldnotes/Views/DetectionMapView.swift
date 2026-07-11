@@ -8,6 +8,7 @@ final class DetectionAnnotation: NSObject, MKAnnotation {
     let scientificName: String
     let commonName: String
     let taxon: Taxon
+    let source: DetectionSource
 
     init?(detection: FieldDetection) {
         guard let latitude = detection.latitude, let longitude = detection.longitude else {
@@ -17,6 +18,7 @@ final class DetectionAnnotation: NSObject, MKAnnotation {
         scientificName = detection.scientificName
         commonName = detection.commonName
         taxon = detection.taxon
+        source = detection.source
     }
 
     var title: String? { commonName }
@@ -101,7 +103,7 @@ struct DetectionMapView: UIViewRepresentable {
             ) as? MKMarkerAnnotationView
             view?.clusteringIdentifier = "detection"
             view?.markerTintColor = UIColor(Color.rust)
-            view?.glyphImage = UIImage(systemName: detection.taxon.glyph)
+            view?.glyphImage = UIImage(systemName: detection.source == .photo ? "camera.fill" : "waveform")
             view?.animatesWhenAdded = false
             return view
         }

@@ -6,8 +6,16 @@ struct ListenView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
+            GeometryReader { geometry in
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 28) {
+                    TripStatusBanner(
+                        trip: model.activeTrip,
+                        locationTaggingEnabled: model.locationTaggingEnabled,
+                        onStart: model.startTrip,
+                        onEnd: model.endActiveTrip
+                    )
+
                     ListenControl(
                         isListening: model.isListening,
                         hasSession: model.elapsedListening > 0,
@@ -56,10 +64,16 @@ struct ListenView: View {
                             TagChip(text: "locked", textColor: .rust, fill: Color.rust.opacity(0.12), borderColor: nil)
                         }
                     }
+                    }
+                    .frame(
+                        width: max(0, geometry.size.width - AlmanacLayout.screenPadding * 2),
+                        alignment: .leading
+                    )
+                    .padding(.horizontal, AlmanacLayout.screenPadding)
+                    .padding(.top, 8)
+                    .padding(.bottom, .tabBarClearance)
                 }
-                .padding(.horizontal, AlmanacLayout.screenPadding)
-                .padding(.top, 8)
-                .padding(.bottom, .tabBarClearance)
+                .scrollBounceBehavior(.basedOnSize, axes: .vertical)
             }
             .almanacBackground()
             .toolbar(.hidden, for: .navigationBar)
@@ -88,9 +102,9 @@ private struct ListenControl: View {
                         .frame(width: 170, height: 170)
                     if isListening {
                         Circle()
-                            .stroke(Color.rust.opacity(0.30), lineWidth: 12)
+                            .stroke(Color.rust, lineWidth: 12)
                             .frame(width: 170, height: 170)
-                            .scaleEffect(pulse ? 1.06 : 0.98)
+                            .opacity(pulse ? 0.42 : 0.12)
                             .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
                     }
                     VStack(spacing: 10) {
@@ -281,7 +295,9 @@ private struct LiveCandidatePanel: View {
                             .minimumScaleFactor(0.75)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             if !trail.isEmpty {
                 CandidateTrail(trail: trail)
@@ -430,15 +446,15 @@ private struct CandidateTrail: View {
                 .tracking(.tracking(0.10, at: 9))
                 .foregroundStyle(Color.monoLabel)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Array(trail.enumerated()), id: \.element.id) { index, trace in
-                        CandidateChip(trace: trace)
-                            .opacity(max(0.4, 1 - Double(index) * 0.11))
-                    }
+            HStack(spacing: 8) {
+                ForEach(Array(trail.prefix(3).enumerated()), id: \.element.id) { index, trace in
+                    CandidateChip(trace: trace)
+                        .opacity(max(0.4, 1 - Double(index) * 0.11))
                 }
-                .padding(.vertical, 1)
             }
+            .padding(.vertical, 1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .clipped()
         }
     }
 }

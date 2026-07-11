@@ -156,6 +156,43 @@ final class FieldnotesCoreTests: XCTestCase {
         XCTAssertEqual(DetectionStore.cooldownSeconds(for: .reptile), 10 * 60)
     }
 
+    func testTripMetadataRoundTripsWithDetection() throws {
+        let tripID = UUID()
+        let detection = FieldDetection(
+            scientificName: "Pica pica",
+            commonName: "Eurasian Magpie",
+            confidence: 0.9,
+            detectedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            week: 8,
+            tripId: tripID
+        )
+
+        let data = try JSONEncoder().encode(detection)
+        let decoded = try JSONDecoder().decode(FieldDetection.self, from: data)
+
+        XCTAssertEqual(decoded.tripId, tripID)
+    }
+
+    func testDetectionCanMoveBetweenTripsOrBecomeUngrouped() {
+        let detectionID = UUID()
+        let destinationID = UUID()
+        var store = DetectionStore(detections: [
+            FieldDetection(
+                id: detectionID,
+                scientificName: "Pica pica",
+                commonName: "Eurasian Magpie",
+                confidence: 0.9,
+                detectedAt: Date(),
+                week: 8
+            )
+        ])
+
+        XCTAssertTrue(store.assignTrip(destinationID, to: detectionID))
+        XCTAssertEqual(store.detections.first?.tripId, destinationID)
+        XCTAssertTrue(store.assignTrip(nil, to: detectionID))
+        XCTAssertNil(store.detections.first?.tripId)
+    }
+
     func testImageCatalogTaxaRoundTripWithoutBecomingUnknown() throws {
         let catalogTaxa: [Taxon] = [
             .fish, .arachnid, .crustacean, .mollusk, .animal,
