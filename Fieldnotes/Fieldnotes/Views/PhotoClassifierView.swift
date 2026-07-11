@@ -25,8 +25,6 @@ struct PhotoClassifierView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    Masthead(title: "Photo", eyebrow: "Field Specimen")
-
                     PhotoGeographyPicker(
                         mode: model.photoGeographyMode,
                         selectedStateCode: model.photoStateCode,
@@ -48,20 +46,21 @@ struct PhotoClassifierView: View {
                         selectedImage: selectedImage,
                         isClassifying: status.isClassifying,
                         selectedItem: $selectedItem,
-                        onTakePhoto: { isShowingCamera = true }
+                        onTakePhoto: { isShowingCamera = true },
+                        onClear: resetPhotoClassification
                     )
 
-                    PhotoResultsPanel(
-                        status: status,
-                        predictions: predictions,
-                        classificationResult: classificationResult,
-                        elapsedSeconds: elapsedSeconds,
-                        assetSummary: assetSummary,
-                        addedScientificNames: addedScientificNames,
-                        addingScientificName: addingScientificName,
-                        onSearchAllUS: searchAllUS,
-                        onAddToLog: addToLog
-                    )
+                    if status != .idle {
+                        PhotoResultsPanel(
+                            status: status,
+                            predictions: predictions,
+                            classificationResult: classificationResult,
+                            addedScientificNames: addedScientificNames,
+                            addingScientificName: addingScientificName,
+                            onSearchAllUS: searchAllUS,
+                            onAddToLog: addToLog
+                        )
+                    }
                 }
                 .padding(.horizontal, AlmanacLayout.screenPadding)
                 .padding(.top, 8)
@@ -139,6 +138,20 @@ struct PhotoClassifierView: View {
                 status = .failed(error.localizedDescription)
             }
         }
+    }
+
+    private func resetPhotoClassification() {
+        selectedItem = nil
+        selectedImage = nil
+        predictions = []
+        classificationResult = nil
+        classificationContext = nil
+        cropRequest = nil
+        status = .idle
+        elapsedSeconds = nil
+        addedScientificNames = []
+        addingScientificName = nil
+        pendingLogPrediction = nil
     }
 
     private func prepareCrop(_ image: UIImage) {
@@ -336,6 +349,7 @@ private struct PhotoSelectionPanel: View {
     var isClassifying: Bool
     @Binding var selectedItem: PhotosPickerItem?
     var onTakePhoto: () -> Void
+    var onClear: () -> Void
 
     var body: some View {
         VStack(spacing: 14) {
@@ -355,14 +369,22 @@ private struct PhotoSelectionPanel: View {
 
             if UIImagePickerController.isSourceTypeAvailable(.camera) {
                 Button(action: onTakePhoto) {
-                    Text(isClassifying ? "Classifying…" : "Take Photo")
+                    Text(
+                        isClassifying
+                            ? "Classifying…"
+                            : selectedImage == nil ? "Take Photo" : "Take Another Photo"
+                    )
                 }
                 .buttonStyle(AlmanacButton())
                 .disabled(isClassifying)
             }
 
             PhotosPicker(selection: $selectedItem, matching: .images) {
-                Text(isClassifying ? "Classifying…" : "Choose Photo")
+                Text(
+                    isClassifying
+                        ? "Classifying…"
+                        : selectedImage == nil ? "Choose Photo" : "Choose Another Photo"
+                )
                     .font(.serif(19, .semibold))
                     .foregroundStyle(isClassifying ? Color.inkFaint : Color.ink)
                     .frame(maxWidth: .infinity)
@@ -370,6 +392,11 @@ private struct PhotoSelectionPanel: View {
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(isClassifying ? Color.lineWarm : Color.ink, lineWidth: 1))
             }
             .disabled(isClassifying)
+
+            if selectedImage != nil && !isClassifying {
+                Button("Clear Photo & Results", action: onClear)
+                    .buttonStyle(AlmanacSecondaryButton())
+            }
         }
     }
 }
@@ -388,15 +415,15 @@ private struct PhotoGeographyPicker: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Nearby matches")
+                    Text("Search Area")
                         .font(.serif(18, .semibold))
                         .foregroundStyle(Color.ink)
-                    Text("Search your state by default, or widen the area when needed.")
+                    Text("Where was this photo taken?")
                         .font(.serif(12))
                         .foregroundStyle(Color.inkSoft)
                 }
                 Spacer(minLength: 12)
-                Picker("Nearby matches", selection: selection) {
+                Picker("Search Area", selection: selection) {
                     Text("Automatic").tag("automatic")
                     if !states.isEmpty {
                         Section("States") {
@@ -450,8 +477,6 @@ private struct PhotoResultsPanel: View {
     var status: PhotoClassificationStatus
     var predictions: [BioCAPPhotoPrediction]
     var classificationResult: BioCAPClassificationResult?
-    var elapsedSeconds: TimeInterval?
-    var assetSummary: BioCAPAssetSummary?
     var addedScientificNames: Set<String>
     var addingScientificName: String?
     var onSearchAllUS: () -> Void
@@ -459,19 +484,9 @@ private struct PhotoResultsPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                Spacer()
-                if let assetSummary {
-                    MonoChip(text: "\(assetSummary.speciesCount.formatted()) species")
-                }
-                if let elapsedSeconds {
-                    MonoChip(text: "\(elapsedSeconds.formatted(.number.precision(.fractionLength(2))))s")
-                }
-            }
-
             switch status {
             case .idle:
-                AlmanacEmpty("Choose a photo", message: "top matches from the local image model")
+                EmptyView()
             case .preparing:
                 HStack(spacing: 12) {
                     ProgressView()
@@ -532,7 +547,7 @@ private struct PhotoIdentificationSummary: View {
                 .font(.serif(13))
                 .foregroundStyle(Color.inkSoft)
             if let geographyName = result.appliedGeographyName {
-                Text("Searched species recorded in \(geographyName)")
+                Text("Search area: \(geographyName)")
                     .font(.mono(10, .medium))
                     .foregroundStyle(Color.inkFaint)
             }

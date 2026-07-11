@@ -49,6 +49,7 @@ final class AppModel: ObservableObject {
     private let photoStateResolver = BioCAPStateResolver()
     private var listeningTask: Task<Void, Never>?
     private var sessionStartedAt: Date?
+    private var sessionAccumulatedListening: TimeInterval = 0
     private var sessionScientificNames: Set<String> = []
     private var sessionTimer: Timer?
     private var sessionOutingId: UUID?
@@ -105,17 +106,38 @@ final class AppModel: ObservableObject {
     }
 
     func toggleListening() {
-        isListening ? stopListening() : startListening()
+        if isListening {
+            pauseListeningSession()
+        } else if elapsedListening > 0 {
+            resumeListeningSession()
+        } else {
+            startNewListeningSession()
+        }
     }
 
     func startListening() {
+        startNewListeningSession()
+    }
+
+    func startNewListeningSession() {
+        if isListening {
+            pauseListeningSession()
+        }
+        beginListening(newSession: true)
+    }
+
+    func resumeListeningSession() {
+        beginListening(newSession: elapsedListening == 0)
+    }
+
+    private func beginListening(newSession: Bool) {
         guard !isListening else {
             return
         }
         isListening = true
         status = "Listening"
         locationService.start()
-        startSessionTracking()
+        startSessionTracking(newSession: newSession)
 
         let detector = injectedDetector ?? LiveDetectionEngine(settings: detectionSettings())
         listeningTask = Task { [detector] in
@@ -144,6 +166,11 @@ final class AppModel: ObservableObject {
     }
 
     func stopListening() {
+        pauseListeningSession()
+    }
+
+    func pauseListeningSession() {
+        guard isListening else { return }
         listeningTask?.cancel()
         listeningTask = nil
         isListening = false
@@ -344,13 +371,18 @@ final class AppModel: ObservableObject {
 
     // MARK: - Listen session tracking
 
-    private func startSessionTracking() {
+    private func startSessionTracking(newSession: Bool) {
+        if newSession {
+            sessionAccumulatedListening = 0
+            elapsedListening = 0
+            sessionDetectionCount = 0
+            sessionSpeciesCount = 0
+            sessionScientificNames.removeAll()
+            sessionOutingId = UUID()
+        } else if sessionOutingId == nil {
+            sessionOutingId = UUID()
+        }
         sessionStartedAt = Date()
-        sessionOutingId = UUID()
-        elapsedListening = 0
-        sessionDetectionCount = 0
-        sessionSpeciesCount = 0
-        sessionScientificNames.removeAll()
         sessionTimer?.invalidate()
         sessionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tickSession() }
@@ -361,19 +393,21 @@ final class AppModel: ObservableObject {
         guard let sessionStartedAt else {
             return
         }
-        elapsedListening = Date().timeIntervalSince(sessionStartedAt)
+        elapsedListening = sessionAccumulatedListening
+            + Date().timeIntervalSince(sessionStartedAt)
     }
 
     private func stopSessionTracking() {
         sessionTimer?.invalidate()
         sessionTimer = nil
         if let sessionStartedAt {
-            elapsedListening = Date().timeIntervalSince(sessionStartedAt)
+            elapsedListening = sessionAccumulatedListening
+                + Date().timeIntervalSince(sessionStartedAt)
+            sessionAccumulatedListening = elapsedListening
         }
-        // Keep the elapsed time and tallies so the last session's summary
-        // stays on screen until the next session starts.
+        // Keep elapsed time, tallies, and outing identity so Resume continues
+        // this session. Start New Session explicitly replaces them.
         sessionStartedAt = nil
-        sessionOutingId = nil
     }
 
     private func noteSessionDetection(_ detection: FieldDetection) {

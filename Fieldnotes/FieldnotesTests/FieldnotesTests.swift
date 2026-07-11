@@ -8,6 +8,35 @@ import UniformTypeIdentifiers
 @testable import Fieldnotes
 
 final class FieldnotesTests: XCTestCase {
+    @MainActor
+    func testListenSessionPauseResumeAndNewSessionLifecycle() async throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: UUID().uuidString))
+        let model = AppModel(detector: IdleDetectionEngine(), defaults: defaults)
+
+        model.startNewListeningSession()
+        try await Task.sleep(for: .milliseconds(80))
+        model.pauseListeningSession()
+        let firstElapsed = model.elapsedListening
+
+        XCTAssertFalse(model.isListening)
+        XCTAssertGreaterThan(firstElapsed, 0.05)
+
+        model.resumeListeningSession()
+        try await Task.sleep(for: .milliseconds(50))
+        model.pauseListeningSession()
+        let resumedElapsed = model.elapsedListening
+
+        XCTAssertGreaterThan(resumedElapsed, firstElapsed)
+
+        model.startNewListeningSession()
+        try await Task.sleep(for: .milliseconds(10))
+        model.pauseListeningSession()
+
+        XCTAssertLessThan(model.elapsedListening, firstElapsed)
+        XCTAssertEqual(model.sessionDetectionCount, 0)
+        XCTAssertEqual(model.sessionSpeciesCount, 0)
+    }
+
     func testBirdNETGoldenFixtureDetectsPicaPica() throws {
         let engine = BirdNETInferenceEngine()
         let windowResults = try engine.runGoldenFixture()
@@ -460,6 +489,12 @@ final class FieldnotesTests: XCTestCase {
 
 private struct BioCAPFixtureExpectation: Decodable {
     var expectedScientificName: String
+}
+
+private struct IdleDetectionEngine: DetectionEngine {
+    func events() -> AsyncThrowingStream<DetectionEngineEvent, Error> {
+        AsyncThrowingStream { _ in }
+    }
 }
 
 private enum BioCAPFixtureError: Error {

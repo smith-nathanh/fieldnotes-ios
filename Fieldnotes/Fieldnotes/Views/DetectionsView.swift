@@ -49,13 +49,10 @@ struct DetectionsView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Masthead(title: "Log", eyebrow: "A Naturalist's Record")
-            AlmanacSegmentedControl(
-                options: LogMode.allCases.map { ($0, $0.title) },
-                selection: $logMode
-            )
-        }
+        AlmanacSegmentedControl(
+            options: LogMode.allCases.map { ($0, $0.title) },
+            selection: $logMode
+        )
     }
 
     @ViewBuilder

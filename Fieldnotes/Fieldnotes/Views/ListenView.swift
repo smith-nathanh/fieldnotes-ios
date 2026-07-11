@@ -8,15 +8,16 @@ struct ListenView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    Masthead(
-                        title: "Listen",
-                        eyebrow: model.isListening ? "Listening — Live" : "Ready to Record"
-                    )
-
                     ListenControl(
                         isListening: model.isListening,
+                        hasSession: model.elapsedListening > 0,
                         status: model.status,
-                        action: model.toggleListening
+                        primaryAction: model.isListening
+                            ? model.pauseListeningSession
+                            : model.elapsedListening > 0
+                                ? model.resumeListeningSession
+                                : model.startNewListeningSession,
+                        newSessionAction: model.startNewListeningSession
                     )
 
                     if model.isListening || model.elapsedListening > 0 {
@@ -34,14 +35,6 @@ struct ListenView: View {
                             threshold: model.confidenceThreshold,
                             isListening: model.isListening
                         )
-                    }
-
-                    AlmanacSection("Diagnostics") {
-                        DiagnosticsPanel(diagnostics: model.diagnostics)
-                    } trailing: {
-                        if model.diagnostics.privacySuppressed {
-                            TagChip(text: "private", textColor: .olive, fill: .paperCard, borderColor: .ink)
-                        }
                     }
 
                     AlmanacSection("Recent Hits") {
@@ -76,47 +69,82 @@ struct ListenView: View {
 
 private struct ListenControl: View {
     var isListening: Bool
+    var hasSession: Bool
     var status: String
-    var action: () -> Void
+    var primaryAction: () -> Void
+    var newSessionAction: () -> Void
 
     @State private var pulse = false
 
     var body: some View {
         VStack(spacing: 16) {
-            Button(action: action) {
+            Button(action: primaryAction) {
                 ZStack {
                     Circle()
                         .fill(Color.paper)
-                        .frame(width: 156, height: 156)
+                        .frame(width: 176, height: 176)
                     Circle()
                         .stroke(Color.ink, lineWidth: 2)
-                        .frame(width: 150, height: 150)
+                        .frame(width: 170, height: 170)
                     if isListening {
                         Circle()
                             .stroke(Color.rust.opacity(0.30), lineWidth: 12)
-                            .frame(width: 150, height: 150)
+                            .frame(width: 170, height: 170)
                             .scaleEffect(pulse ? 1.06 : 0.98)
                             .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
                     }
-                    Image(systemName: isListening ? "stop.fill" : "waveform")
-                        .font(.system(size: 46, weight: .semibold))
-                        .foregroundStyle(Color.rust)
+                    VStack(spacing: 10) {
+                        Image(systemName: isListening ? "pause.fill" : "waveform")
+                            .font(.system(size: 34, weight: .semibold))
+                            .foregroundStyle(Color.rust)
+                        Text(primaryTitle)
+                            .font(.serif(16, .semibold))
+                            .foregroundStyle(Color.ink)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                    }
+                    .padding(.horizontal, 24)
                 }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(isListening ? "Stop listening" : "Start listening")
+            .accessibilityLabel(primaryTitle)
             .onAppear { pulse = isListening }
             .onChange(of: isListening) { _, listening in
                 pulse = listening
             }
 
-            Text(status)
-                .font(.serif(22, .semibold))
-                .foregroundStyle(Color.ink)
+            Text(guidance)
+                .font(.serif(15))
+                .foregroundStyle(Color.inkSoft)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
+
+            if hasSession && !isListening {
+                Button("Start New Session", action: newSessionAction)
+                    .buttonStyle(AlmanacSecondaryButton())
+                    .frame(maxWidth: 360)
+            }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var primaryTitle: String {
+        if isListening { return "Pause Listening" }
+        if hasSession { return "Resume Listening" }
+        return "Start Listening"
+    }
+
+    private var guidance: String {
+        if !["Ready", "Listening", "Paused"].contains(status) {
+            return status
+        }
+        if isListening {
+            return "Listening for nearby wildlife. Pause whenever you need to."
+        }
+        if hasSession {
+            return "Resume this session or start a new one with fresh totals."
+        }
+        return "Tap to identify birds, frogs, insects, and other wildlife."
     }
 }
 
@@ -127,7 +155,7 @@ private struct SessionSummary: View {
     var isLive: Bool
 
     var body: some View {
-        AlmanacSection(isLive ? "This Session" : "Last Session") {
+        AlmanacSection("This Session") {
             HStack(alignment: .top, spacing: 16) {
                 MetricBlock(title: "Duration", value: durationText, valueColor: isLive ? .rust : .ink)
                 MetricBlock(title: "Species", value: "\(speciesCount)")
@@ -138,6 +166,8 @@ private struct SessionSummary: View {
                 Circle()
                     .fill(Color.rust)
                     .frame(width: 8, height: 8)
+            } else {
+                TagChip(text: "paused", textColor: .inkSoft, fill: .paperCard, borderColor: .ink)
             }
         }
     }
@@ -207,61 +237,6 @@ private struct FieldControls: View {
     }
 }
 
-private struct DiagnosticsPanel: View {
-    var diagnostics: DetectionDiagnostics
-
-    private let columns = [
-        GridItem(.flexible(), spacing: 16),
-        GridItem(.flexible(), spacing: 16),
-    ]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            LazyVGrid(columns: columns, spacing: 18) {
-                MetricBlock(title: "Windows", value: "\(diagnostics.windowsProcessed)")
-                MetricBlock(title: "Level", value: "\(Int(diagnostics.audioLevel * 100))%")
-                MetricBlock(title: "Latency", value: latencyText)
-                MetricBlock(title: "Range", value: rangeText)
-            }
-
-            HStack(spacing: 8) {
-                Image(systemName: "mic")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.rust)
-                Text(audioInputText)
-                    .font(.mono(10, .regular))
-                    .tracking(.tracking(0.06, at: 10))
-                    .textCase(.uppercase)
-                    .foregroundStyle(Color.monoLabel)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Spacer()
-            }
-        }
-    }
-
-    private var latencyText: String {
-        guard let inferenceLatency = diagnostics.inferenceLatency else {
-            return "-"
-        }
-        return "\(Int(inferenceLatency * 1_000)) ms"
-    }
-
-    private var rangeText: String {
-        guard diagnostics.rangeFilterActive else {
-            return "Off"
-        }
-        guard let rangeSpeciesCount = diagnostics.rangeSpeciesCount else {
-            return "On"
-        }
-        return "\(rangeSpeciesCount)"
-    }
-
-    private var audioInputText: String {
-        diagnostics.audioInputName ?? "Mic route unknown"
-    }
-}
-
 private struct LiveCandidatePanel: View {
     var diagnostics: DetectionDiagnostics
     var threshold: Float
@@ -322,7 +297,7 @@ private struct LiveCandidatePanel: View {
     }
 
     private var idleName: String {
-        isListening ? "Listening..." : "Awaiting first window"
+        isListening ? "Listening..." : "Waiting to listen"
     }
 
     private var displayedConfidence: Float? {
@@ -375,9 +350,9 @@ private struct LiveCandidatePanel: View {
         case .considering:
             return "The model is considering this sound."
         case .listening:
-            return "Waiting for the first three-second audio window."
+            return "Listening for a clear wildlife sound."
         case .idle:
-            return "Tap Listen to begin local classification."
+            return "Live suggestions will appear here while Fieldnotes listens."
         }
     }
 
@@ -525,7 +500,7 @@ private enum CandidateState: Equatable {
         case .listening:
             return "listening"
         case .idle:
-            return "idle"
+            return "ready"
         }
     }
 

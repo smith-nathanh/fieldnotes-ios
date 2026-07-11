@@ -34,10 +34,39 @@ final class FieldnotesUITests: XCTestCase {
     }
 
     @MainActor
+    func testPrimaryCaptureScreens() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Start Listening"].waitForExistence(timeout: 5))
+        attachScreenshot(named: "Listen Idle")
+
+        let photoTab = app.buttons["PHOTO"]
+        XCTAssertTrue(photoTab.exists)
+        photoTab.tap()
+        XCTAssertTrue(app.staticTexts["Search Area"].waitForExistence(timeout: 5))
+
+        let locationAlert = app.alerts.firstMatch
+        if locationAlert.waitForExistence(timeout: 2) {
+            locationAlert.buttons["Don’t Allow"].tap()
+        }
+
+        XCTAssertFalse(app.staticTexts["Choose a photo"].exists)
+        attachScreenshot(named: "Photo Idle")
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             XCUIApplication().launch()
         }
+    }
+
+    private func attachScreenshot(named name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }

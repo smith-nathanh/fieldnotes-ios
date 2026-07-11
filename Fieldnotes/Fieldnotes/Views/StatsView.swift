@@ -8,8 +8,6 @@ struct StatsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 26) {
-                    Masthead(title: "Statistics", eyebrow: "Field Summary")
-
                     if model.detections.isEmpty {
                         AlmanacEmpty("No stats yet", message: "log a few detections to see the ledger")
                     } else {
@@ -32,6 +30,8 @@ struct StatsView: View {
                             locatedDetections: locatedDetections
                         )
                     }
+
+                    ModelCreditsPanel()
                 }
                 .padding(.horizontal, AlmanacLayout.screenPadding)
                 .padding(.top, 8)
@@ -156,6 +156,43 @@ struct StatsView: View {
             count: audioDetections.filter { range.contains($0.confidence) }.count,
             total: audioDetections.count
         )
+    }
+}
+
+private struct ModelCreditsPanel: View {
+    var body: some View {
+        AlmanacSection("Model Credits") {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("BirdNET v2.4")
+                        .font(.serif(17, .semibold))
+                        .foregroundStyle(Color.ink)
+                    Text("Sound identification by the BirdNET team, Cornell Lab of Ornithology, and Chemnitz University of Technology.")
+                        .font(.serif(13))
+                        .foregroundStyle(Color.inkSoft)
+                    Link("CC BY-NC-SA 4.0 · Noncommercial", destination: URL(string: "https://creativecommons.org/licenses/by-nc-sa/4.0/")!)
+                        .font(.serif(13, .semibold))
+                        .foregroundStyle(Color.rust)
+                }
+
+                Divider()
+                    .overlay(Color.lineWarm)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("BioCAP")
+                        .font(.serif(17, .semibold))
+                        .foregroundStyle(Color.ink)
+                    Text("Photo identification model by the Imageomics Institute and BioCAP contributors.")
+                        .font(.serif(13))
+                        .foregroundStyle(Color.inkSoft)
+                    Link("MIT License", destination: URL(string: "https://huggingface.co/imageomics/biocap")!)
+                        .font(.serif(13, .semibold))
+                        .foregroundStyle(Color.rust)
+                }
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color.paperCard))
+        }
     }
 }
 
