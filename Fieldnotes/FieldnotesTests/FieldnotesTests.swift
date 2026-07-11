@@ -139,12 +139,15 @@ final class FieldnotesTests: XCTestCase {
 
         let result = BioCAPIdentificationPolicy.evaluate(
             predictions: predictions,
-            appliedGeographyName: nil
+            appliedGeographyName: "North Carolina",
+            searchedSpeciesCount: 10_491,
+            totalSpeciesCount: 52_762
         )
 
         XCTAssertEqual(result.suggestedRank, .genus)
         XCTAssertEqual(result.suggestedName, "Lucanus")
         XCTAssertNil(result.exactPrediction)
+        XCTAssertTrue(result.shouldOfferAllUSSearch)
     }
 
     func testBioCAPPolicyAllowsOnlySeparatedTopSpecies() {
@@ -225,6 +228,15 @@ final class FieldnotesTests: XCTestCase {
     }
 
     func testPhotoContextSupportsManualRegionAndEverywhere() {
+        let state = BioCAPPhotoContext(
+            latitude: nil,
+            longitude: nil,
+            week: 28,
+            geographyPreference: BioCAPGeographyPreference(
+                mode: .selectedState,
+                stateCode: "US-NC"
+            )
+        )
         let manual = BioCAPPhotoContext(
             latitude: nil,
             longitude: nil,
@@ -241,11 +253,53 @@ final class FieldnotesTests: XCTestCase {
             geographyPreference: BioCAPGeographyPreference(mode: .everywhere)
         )
 
+        XCTAssertEqual(state.preferredStateCode, "US-NC")
+        XCTAssertNil(state.preferredRegion)
         XCTAssertEqual(manual.preferredRegion, .mountainWest)
         XCTAssertNil(everywhere.preferredRegion)
     }
 
-    func testGeographyBoostChangesOrderingWithoutFilteringCandidates() {
+    func testUSAssetGeographyScopesUseExpectedCandidateCounts() throws {
+        let summary = try BioCAPImageClassifier.assetSummary()
+        guard summary.speciesCount == 52_762 else {
+            throw XCTSkip("U.S. BioCAP assets are not installed")
+        }
+        let classifier = try BioCAPImageClassifier(computeUnits: .cpuOnly)
+        let northCarolina = classifier.searchScope(for: BioCAPPhotoContext(
+            latitude: nil,
+            longitude: nil,
+            week: 28,
+            geographyPreference: BioCAPGeographyPreference(
+                mode: .selectedState,
+                stateCode: "US-NC"
+            )
+        ))
+        let southeast = classifier.searchScope(for: BioCAPPhotoContext(
+            latitude: nil,
+            longitude: nil,
+            week: 28,
+            geographyPreference: BioCAPGeographyPreference(
+                mode: .selectedRegion,
+                regionID: BioCAPUSRegion.southeast.rawValue
+            )
+        ))
+        let allUS = classifier.searchScope(for: BioCAPPhotoContext(
+            latitude: nil,
+            longitude: nil,
+            week: 28,
+            geographyPreference: BioCAPGeographyPreference(mode: .everywhere)
+        ))
+
+        XCTAssertEqual(summary.states.count, 51)
+        XCTAssertEqual(summary.regions.count, 9)
+        XCTAssertEqual(northCarolina.displayName, "North Carolina")
+        XCTAssertEqual(northCarolina.candidateSpeciesCount, 10_491)
+        XCTAssertEqual(southeast.candidateSpeciesCount, 21_244)
+        XCTAssertEqual(allUS.candidateSpeciesCount, 52_762)
+        XCTAssertFalse(allUS.isRestricted)
+    }
+
+    func testGeographyFilterStrictlySubsetsCandidates() {
         let southeastStateMask = UInt64(0b0011)
         let pacificSpeciesStateMask = UInt64(0b0100)
         let southeastSpeciesStateMask = UInt64(0b0010)
@@ -254,25 +308,18 @@ final class FieldnotesTests: XCTestCase {
             (name: "Southeast species", similarity: Float(0.397), membership: southeastSpeciesStateMask),
         ]
 
-        let ranked = candidates.sorted {
-            $0.similarity + BioCAPGeographyRanking.boost(
+        let filtered = candidates.filter {
+            BioCAPGeographyFilter.includes(
                 stateMembership: $0.membership,
-                regionStateMask: southeastStateMask
-            ) > $1.similarity + BioCAPGeographyRanking.boost(
-                stateMembership: $1.membership,
-                regionStateMask: southeastStateMask
+                allowedStateMask: southeastStateMask
             )
         }
 
-        XCTAssertEqual(ranked.map(\.name), ["Southeast species", "Pacific species"])
-        XCTAssertEqual(ranked.count, candidates.count)
-        XCTAssertEqual(
-            BioCAPGeographyRanking.boost(
-                stateMembership: pacificSpeciesStateMask,
-                regionStateMask: southeastStateMask
-            ),
-            0
-        )
+        XCTAssertEqual(filtered.map(\.name), ["Southeast species"])
+        XCTAssertFalse(BioCAPGeographyFilter.includes(
+            stateMembership: pacificSpeciesStateMask,
+            allowedStateMask: southeastStateMask
+        ))
     }
 
     func testPhotoMetadataProvidesCaptureLocationAndDate() throws {

@@ -148,21 +148,26 @@ def build_geography_export(
         region_records.append({"id": region_id, "displayName": display_name})
 
     state_codes: list[str] = []
+    state_display_names: list[str] = []
     state_region_indices: list[int] = []
     state_indices: dict[str, int] = {}
     for index, value in enumerate(places):
         if not isinstance(value, dict):
             raise SystemExit("Every geography membership place must be an object.")
         code = str(value.get("code") or "")
+        display_name = str(value.get("name") or "")
         region_id = str(value.get("regionID") or "")
-        if not code or code in state_indices:
-            raise SystemExit("Geography membership places require unique codes.")
+        if not code or not display_name or code in state_indices:
+            raise SystemExit(
+                "Geography membership places require unique codes and display names."
+            )
         if region_id not in region_indices:
             raise SystemExit(
                 f"Geography membership place {code!r} has unknown region {region_id!r}."
             )
         state_indices[code] = index
         state_codes.append(code)
+        state_display_names.append(display_name)
         state_region_indices.append(region_indices[region_id])
 
     masks = np.zeros(len(species_rows), dtype="<u8")
@@ -199,6 +204,7 @@ def build_geography_export(
     return (
         {
             "stateCodes": state_codes,
+            "stateDisplayNames": state_display_names,
             "stateRegionIndices": state_region_indices,
             "regions": region_records,
         },
@@ -225,6 +231,10 @@ def choose_fixture(
         return None
 
     rows = read_jsonl(manifest_path)
+    for row in rows:
+        fixture_path = Path(str(row["path"]))
+        if not fixture_path.is_absolute() and not fixture_path.is_file():
+            row["path"] = str(manifest_path.parent / fixture_path)
     top1_images = read_ranked_top1(rankings_path) if rankings_path else set()
 
     def is_top1(row: dict[str, object]) -> bool:

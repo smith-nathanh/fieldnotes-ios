@@ -30,6 +30,7 @@ class IOSAssetBundleTests(unittest.TestCase):
                 "labelTextType": "scientific",
                 "geography": {
                     "stateCodes": ["US-NC"],
+                    "stateDisplayNames": ["North Carolina"],
                     "stateRegionIndices": [0],
                     "regions": [{"id": "southeast", "displayName": "Southeast"}],
                 },

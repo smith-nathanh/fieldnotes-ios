@@ -87,6 +87,26 @@
       }
     },
     "scoreMeanMilliseconds": 3.1917847498940923,
+    "strictSubsetSweep": {
+      "northCarolina": {
+        "candidateSpecies": 10491,
+        "catalogCoverage": 1.0,
+        "correctTop1": 36,
+        "meanReciprocalRank": 0.7013026854976634,
+        "speciesTop1": 0.6,
+        "speciesTop3": 0.7666666666666667,
+        "speciesTop10": 0.9
+      },
+      "southeast": {
+        "candidateSpecies": 21244,
+        "catalogCoverage": 1.0,
+        "correctTop1": 27,
+        "meanReciprocalRank": 0.5801494776454148,
+        "speciesTop1": 0.45,
+        "speciesTop3": 0.6666666666666666,
+        "speciesTop10": 0.85
+      }
+    },
     "southeastSoftBoost005": {
       "meanReciprocalRank": 0.5458423034604916,
       "speciesTop1": 0.43333333333333335,
@@ -96,7 +116,7 @@
   },
   "promotionDecision": {
     "float16": "Ranking parity is acceptable, but float32 remains canonical because its app-size cost is modest and avoids adding a second runtime storage path.",
-    "usCatalog": "Do not promote flat U.S. assets yet. State-aware soft reranking must be implemented and validated on independent regional cases before replacing the 16,467-row NC-focused bundle."
+    "usCatalog": "Promote the U.S. catalog only with user-selectable strict state-first search scope, not flat ranking. North Carolina subsetting restores the focused catalog's 60.0/76.7/90.0 top-1/top-3/top-10 metrics on nc-v1; validate independent states before making broader accuracy claims."
   },
   "schemaVersion": 1
 }

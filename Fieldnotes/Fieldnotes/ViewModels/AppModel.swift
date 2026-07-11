@@ -2,7 +2,25 @@ import Combine
 import CoreLocation
 import Foundation
 import FieldnotesCore
+import MapKit
 import UIKit
+
+private actor BioCAPStateResolver {
+    func stateCode(latitude: Double, longitude: Double) async -> String? {
+        let location = CLLocation(latitude: latitude, longitude: longitude)
+        guard let request = MKReverseGeocodingRequest(location: location),
+              let mapItems = try? await request.mapItems,
+              let placemark = mapItems.first?.placemark,
+              placemark.isoCountryCode == "US",
+              let administrativeArea = placemark.administrativeArea?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased(),
+              administrativeArea.count == 2 else {
+            return nil
+        }
+        return "US-\(administrativeArea)"
+    }
+}
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -16,6 +34,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var confidenceThreshold: Float
     @Published private(set) var locationTaggingEnabled: Bool
     @Published private(set) var photoGeographyMode: BioCAPGeographyMode
+    @Published private(set) var photoStateCode: String
     @Published private(set) var photoRegionID: String
     @Published private(set) var elapsedListening: TimeInterval = 0
     @Published private(set) var sessionSpeciesCount = 0
@@ -27,6 +46,7 @@ final class AppModel: ObservableObject {
     private let clipWriter = AudioClipWriter()
     private let photoStore = PhotoStore()
     private let locationService = LocationService()
+    private let photoStateResolver = BioCAPStateResolver()
     private var listeningTask: Task<Void, Never>?
     private var sessionStartedAt: Date?
     private var sessionScientificNames: Set<String> = []
@@ -37,6 +57,7 @@ final class AppModel: ObservableObject {
     private let confidenceThresholdKey = "confidenceThreshold"
     private let locationTaggingEnabledKey = "locationTaggingEnabled"
     private let photoGeographyModeKey = "photoGeographyMode"
+    private let photoStateCodeKey = "photoStateCode"
     private let photoRegionIDKey = "photoRegionID"
     private let defaultSettings = DetectionSettings()
 
@@ -67,6 +88,7 @@ final class AppModel: ObservableObject {
         self.photoGeographyMode = BioCAPGeographyMode(
             rawValue: defaults.string(forKey: photoGeographyModeKey) ?? ""
         ) ?? .automatic
+        self.photoStateCode = defaults.string(forKey: photoStateCodeKey) ?? "US-NC"
         self.photoRegionID = BioCAPUSRegion(
             rawValue: defaults.string(forKey: photoRegionIDKey) ?? ""
         )?.rawValue ?? BioCAPUSRegion.southeast.rawValue
@@ -160,6 +182,14 @@ final class AppModel: ObservableObject {
         defaults.set(mode.rawValue, forKey: photoGeographyModeKey)
     }
 
+    func setPhotoStateCode(_ stateCode: String) {
+        guard stateCode.hasPrefix("US-"), stateCode.count == 5 else { return }
+        photoStateCode = stateCode
+        photoGeographyMode = .selectedState
+        defaults.set(stateCode, forKey: photoStateCodeKey)
+        defaults.set(BioCAPGeographyMode.selectedState.rawValue, forKey: photoGeographyModeKey)
+    }
+
     func setPhotoRegionID(_ regionID: String) {
         guard BioCAPUSRegion(rawValue: regionID) != nil else { return }
         photoRegionID = regionID
@@ -181,16 +211,27 @@ final class AppModel: ObservableObject {
     func photoClassificationContext(
         at date: Date = Date(),
         photoCoordinate: CLLocationCoordinate2D? = nil
-    ) -> BioCAPPhotoContext {
+    ) async -> BioCAPPhotoContext {
         let location = locationTaggingEnabled ? locationService.currentLocation : nil
         let coordinate = locationTaggingEnabled ? photoCoordinate ?? location?.coordinate : nil
+        let detectedStateCode: String?
+        if photoGeographyMode == .automatic, let coordinate {
+            detectedStateCode = await photoStateResolver.stateCode(
+                latitude: coordinate.latitude,
+                longitude: coordinate.longitude
+            )
+        } else {
+            detectedStateCode = nil
+        }
         return BioCAPPhotoContext(
             latitude: coordinate?.latitude,
             longitude: coordinate?.longitude,
             week: Calendar(identifier: .iso8601).component(.weekOfYear, from: date),
             horizontalAccuracy: photoCoordinate == nil ? location?.horizontalAccuracy : nil,
+            detectedStateCode: detectedStateCode,
             geographyPreference: BioCAPGeographyPreference(
                 mode: photoGeographyMode,
+                stateCode: photoStateCode,
                 regionID: photoRegionID
             )
         )

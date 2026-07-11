@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import tarfile
@@ -14,7 +15,7 @@ from pathlib import Path
 
 
 DEFAULT_MANIFEST = Path(
-    "tools/biocap/assets/nc-regional-birdnet-travel-v2.json"
+    "tools/biocap/assets/us-regional-v1-state-scope.json"
 )
 DEFAULT_OUTPUT = Path("Fieldnotes/Fieldnotes/Resources/BioCAP")
 
@@ -57,13 +58,20 @@ def download(gcs_uri: str, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     gsutil = shutil.which("gsutil")
     gcloud = shutil.which("gcloud")
-    if gsutil:
-        command = [gsutil, "cp", gcs_uri, str(destination)]
-    elif gcloud:
+    environment = None
+    if gcloud:
         command = [gcloud, "storage", "cp", gcs_uri, str(destination)]
+        environment = os.environ.copy()
+        # Some gcloud installations omit the optional gcloud-crc32c helper.
+        # Download sequentially, then rely on verify()'s tracked SHA-256.
+        environment["CLOUDSDK_STORAGE_CHECK_HASHES"] = "never"
+        environment["CLOUDSDK_STORAGE_PROCESS_COUNT"] = "1"
+        environment["CLOUDSDK_STORAGE_THREAD_COUNT"] = "1"
+    elif gsutil:
+        command = [gsutil, "cp", gcs_uri, str(destination)]
     else:
         raise SystemExit("Install Google Cloud CLI (gcloud or gsutil), or pass --archive.")
-    subprocess.run(command, check=True)
+    subprocess.run(command, check=True, env=environment)
 
 
 def safe_extract(archive_path: Path, destination: Path) -> None:

@@ -15,10 +15,13 @@ against the bundled species embeddings.
    that square to `224x224`.
 3. The image is normalized with CLIP/OpenCLIP mean and standard deviation.
 4. `BioCAPVisionEncoder.mlpackage` produces a normalized image embedding.
-5. The app computes cosine similarity against `BioCAPTextEmbeddings.f32`.
-6. The top species rows from `BioCAPSpecies.json` are shown as ranked matches.
-7. Automatic location, a selected U.S. region, or Everywhere controls an
-   optional +0.005 soft ordering boost. It never filters the catalog.
+5. Automatic location uses the system geocoder to choose a state when possible;
+   the user can instead choose a state, broader region, or All U.S.
+6. The selected scope filters the eligible embedding rows using
+   `BioCAPGeography.bin`, then the app computes cosine similarity only within
+   that subset.
+7. The top species rows from `BioCAPSpecies.json` are shown as ranked matches.
+   Weak state/region results offer a one-tap All U.S. retry.
 8. Saved photo matches are logged by scientific name so they merge with BirdNET
    audio detections for the same species.
 
@@ -41,8 +44,8 @@ Scores are cosine similarities, not calibrated probabilities.
 Current asset configuration:
 
 - model: `hf-hub:imageomics/biocap`
-- species count: `16,467` (`10,494` North Carolina regional species plus
-  `5,973` taxonomy-validated travel fallback species)
+- species count: `52,762` deduplicated U.S. animal species
+- geography: `51` state/DC choices and `9` broader U.S. regions
 - embedding dimension: `512`
 - text label type: scientific name
 - prompt preset: `biocap-openai`

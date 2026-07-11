@@ -1,0 +1,271 @@
+{
+  "archive": {
+    "bytes": 262221222,
+    "filename": "fieldnotes-biocap-us-regional-v1-state-scope.tar.gz",
+    "sha256": "e3916a700806b803a9322742f03788b96dce70a4dd5ae61535819b53822d48fd"
+  },
+  "assetVersion": "us-regional-v1-state-scope",
+  "config": {
+    "embeddingDim": 512,
+    "embeddingDtype": "float32",
+    "geography": {
+      "regions": [
+        {
+          "displayName": "Northeast",
+          "id": "northeast"
+        },
+        {
+          "displayName": "Southeast",
+          "id": "southeast"
+        },
+        {
+          "displayName": "Midwest",
+          "id": "midwest"
+        },
+        {
+          "displayName": "South Central",
+          "id": "south-central"
+        },
+        {
+          "displayName": "Southwest",
+          "id": "southwest"
+        },
+        {
+          "displayName": "Mountain West",
+          "id": "mountain-west"
+        },
+        {
+          "displayName": "Pacific",
+          "id": "pacific"
+        },
+        {
+          "displayName": "Alaska",
+          "id": "alaska"
+        },
+        {
+          "displayName": "Hawaii",
+          "id": "hawaii"
+        }
+      ],
+      "stateCodes": [
+        "US-AL",
+        "US-AK",
+        "US-AZ",
+        "US-AR",
+        "US-CA",
+        "US-CO",
+        "US-CT",
+        "US-DE",
+        "US-DC",
+        "US-FL",
+        "US-GA",
+        "US-HI",
+        "US-ID",
+        "US-IL",
+        "US-IN",
+        "US-IA",
+        "US-KS",
+        "US-KY",
+        "US-LA",
+        "US-ME",
+        "US-MD",
+        "US-MA",
+        "US-MI",
+        "US-MN",
+        "US-MS",
+        "US-MO",
+        "US-MT",
+        "US-NE",
+        "US-NV",
+        "US-NH",
+        "US-NJ",
+        "US-NM",
+        "US-NY",
+        "US-NC",
+        "US-ND",
+        "US-OH",
+        "US-OK",
+        "US-OR",
+        "US-PA",
+        "US-RI",
+        "US-SC",
+        "US-SD",
+        "US-TN",
+        "US-TX",
+        "US-UT",
+        "US-VT",
+        "US-VA",
+        "US-WA",
+        "US-WV",
+        "US-WI",
+        "US-WY"
+      ],
+      "stateDisplayNames": [
+        "Alabama",
+        "Alaska",
+        "Arizona",
+        "Arkansas",
+        "California",
+        "Colorado",
+        "Connecticut",
+        "Delaware",
+        "District of Columbia",
+        "Florida",
+        "Georgia",
+        "Hawaii",
+        "Idaho",
+        "Illinois",
+        "Indiana",
+        "Iowa",
+        "Kansas",
+        "Kentucky",
+        "Louisiana",
+        "Maine",
+        "Maryland",
+        "Massachusetts",
+        "Michigan",
+        "Minnesota",
+        "Mississippi",
+        "Missouri",
+        "Montana",
+        "Nebraska",
+        "Nevada",
+        "New Hampshire",
+        "New Jersey",
+        "New Mexico",
+        "New York",
+        "North Carolina",
+        "North Dakota",
+        "Ohio",
+        "Oklahoma",
+        "Oregon",
+        "Pennsylvania",
+        "Rhode Island",
+        "South Carolina",
+        "South Dakota",
+        "Tennessee",
+        "Texas",
+        "Utah",
+        "Vermont",
+        "Virginia",
+        "Washington",
+        "West Virginia",
+        "Wisconsin",
+        "Wyoming"
+      ],
+      "stateRegionIndices": [
+        1,
+        7,
+        4,
+        3,
+        6,
+        5,
+        0,
+        1,
+        1,
+        1,
+        1,
+        8,
+        5,
+        2,
+        2,
+        2,
+        2,
+        1,
+        3,
+        0,
+        1,
+        0,
+        2,
+        2,
+        1,
+        2,
+        5,
+        2,
+        5,
+        0,
+        0,
+        4,
+        0,
+        1,
+        2,
+        2,
+        3,
+        6,
+        0,
+        0,
+        1,
+        2,
+        1,
+        3,
+        5,
+        0,
+        1,
+        6,
+        1,
+        2,
+        5
+      ]
+    },
+    "labelTextType": "scientific",
+    "modelName": "hf-hub:imageomics/biocap",
+    "promptPreset": "biocap-openai",
+    "promptTemplateCount": 81,
+    "speciesCount": 52762
+  },
+  "files": [
+    {
+      "bytes": 3241,
+      "path": "BioCAP/BioCAPConfig.json",
+      "sha256": "3c198515833bebe1bcf142699675b5c73ca5f29f25b60a6bd80426153a2dcb4c"
+    },
+    {
+      "bytes": 422096,
+      "path": "BioCAP/BioCAPGeography.bin",
+      "sha256": "1081de9c8956087adcba8b884c753ae3a915bdce4d88e59257a58de10081dce0"
+    },
+    {
+      "bytes": 27016838,
+      "path": "BioCAP/BioCAPSpecies.json",
+      "sha256": "a94312f859cf3cab1e2b80e8b9f74d35095f2953e9af2ac17b48fdbf70135de1"
+    },
+    {
+      "bytes": 108056576,
+      "path": "BioCAP/BioCAPTextEmbeddings.f32",
+      "sha256": "4beb8229a5965c3fc4a0d77022e781a4ccdc228e2c5cf5e2bf7780f161a99861"
+    },
+    {
+      "bytes": 113705,
+      "path": "BioCAP/Models/BioCAPVisionEncoder.mlpackage/Data/com.apple.CoreML/model.mlmodel",
+      "sha256": "96ec18e0edbff0be5d416f732103f9ff798f6068215b62aef1b10dd2e2126acd"
+    },
+    {
+      "bytes": 172396160,
+      "path": "BioCAP/Models/BioCAPVisionEncoder.mlpackage/Data/com.apple.CoreML/weights/weight.bin",
+      "sha256": "4289d346b6cf7a549fb3637b68195d87316620ec67294b2e66082abac7da4d50"
+    },
+    {
+      "bytes": 617,
+      "path": "BioCAP/Models/BioCAPVisionEncoder.mlpackage/Manifest.json",
+      "sha256": "27a726d9b14504034cfb797c5a9c4b33baf06fb424c6afb836232ded52254767"
+    },
+    {
+      "bytes": 138243,
+      "path": "BioCAP/TestFixtures/BioCAPFixture.jpg",
+      "sha256": "25e98b6fa4206e66f117d02d754263328cd0e8e81d7cc97edab8caaf4d6581df"
+    },
+    {
+      "bytes": 241,
+      "path": "BioCAP/TestFixtures/BioCAPFixture.json",
+      "sha256": "6e6290916b7c3eff21d0c8bcff9b9f0f0e6ce00fd4965f146fda72bf04dcda21"
+    }
+  ],
+  "gcsURI": "gs://fieldnotes-biocap/ios-assets/us-regional-v1-state-scope/fieldnotes-biocap-us-regional-v1-state-scope.tar.gz",
+  "gcsObject": {
+    "componentCount": 6,
+    "crc32c": "ltY1/g==",
+    "generation": "1783734500427199",
+    "uploadType": "composite"
+  },
+  "schemaVersion": 1
+}

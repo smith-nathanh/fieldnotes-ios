@@ -29,15 +29,18 @@ struct PhotoClassifierView: View {
 
                     PhotoGeographyPicker(
                         mode: model.photoGeographyMode,
+                        selectedStateCode: model.photoStateCode,
                         selectedRegionID: model.photoRegionID,
+                        states: assetSummary?.states ?? [],
                         regions: assetSummary?.regions
                             ?? BioCAPUSRegion.allCases.map {
                                 BioCAPRegionDefinition(
                                     id: $0.rawValue,
                                     displayName: $0.displayName
                                 )
-                            },
+                        },
                         onModeChange: model.setPhotoGeographyMode,
+                        onStateChange: model.setPhotoStateCode,
                         onRegionChange: model.setPhotoRegionID
                     )
 
@@ -56,6 +59,7 @@ struct PhotoClassifierView: View {
                         assetSummary: assetSummary,
                         addedScientificNames: addedScientificNames,
                         addingScientificName: addingScientificName,
+                        onSearchAllUS: searchAllUS,
                         onAddToLog: addToLog
                     )
                 }
@@ -125,7 +129,7 @@ struct PhotoClassifierView: View {
                 }
 
                 let classificationImage = previewImage.normalizedForPhotoClassification()
-                let context = model.photoClassificationContext(
+                let context = await model.photoClassificationContext(
                     at: data.embeddedCaptureDate ?? Date(),
                     photoCoordinate: data.embeddedCoordinate
                 )
@@ -148,8 +152,8 @@ struct PhotoClassifierView: View {
         addingScientificName = nil
         pendingLogPrediction = nil
 
-        let context = model.photoClassificationContext()
         Task {
+            let context = await model.photoClassificationContext()
             // Let UIImagePickerController finish dismissing before presenting
             // the crop editor from the same screen.
             try? await Task.sleep(for: .milliseconds(300))
@@ -196,6 +200,29 @@ struct PhotoClassifierView: View {
             context: context
         )
         return (result, Date().timeIntervalSince(start))
+    }
+
+    private func searchAllUS() {
+        guard let selectedImage,
+              let data = selectedImage.jpegData(compressionQuality: 0.95),
+              var context = classificationContext else {
+            return
+        }
+        context.geographyPreference = BioCAPGeographyPreference(mode: .everywhere)
+        status = .classifying
+
+        Task {
+            do {
+                let result = try await classify(data, context: context)
+                classificationContext = context
+                classificationResult = result.0
+                predictions = result.0.predictions
+                elapsedSeconds = result.1
+                status = .ready
+            } catch {
+                status = .failed(error.localizedDescription)
+            }
+        }
     }
 
     private func addToLog(_ prediction: BioCAPPhotoPrediction) {
@@ -349,9 +376,12 @@ private struct PhotoSelectionPanel: View {
 
 private struct PhotoGeographyPicker: View {
     var mode: BioCAPGeographyMode
+    var selectedStateCode: String
     var selectedRegionID: String
+    var states: [BioCAPStateDefinition]
     var regions: [BioCAPRegionDefinition]
     var onModeChange: (BioCAPGeographyMode) -> Void
+    var onStateChange: (String) -> Void
     var onRegionChange: (String) -> Void
 
     var body: some View {
@@ -361,17 +391,26 @@ private struct PhotoGeographyPicker: View {
                     Text("Nearby matches")
                         .font(.serif(18, .semibold))
                         .foregroundStyle(Color.ink)
-                    Text("Helps likely local wildlife appear higher without hiding unusual finds.")
+                    Text("Search your state by default, or widen the area when needed.")
                         .font(.serif(12))
                         .foregroundStyle(Color.inkSoft)
                 }
                 Spacer(minLength: 12)
                 Picker("Nearby matches", selection: selection) {
                     Text("Automatic").tag("automatic")
-                    ForEach(regions, id: \.id) { region in
-                        Text(region.displayName).tag("region:\(region.id)")
+                    if !states.isEmpty {
+                        Section("States") {
+                            ForEach(states, id: \.code) { state in
+                                Text(state.displayName).tag("state:\(state.code)")
+                            }
+                        }
                     }
-                    Text("Everywhere").tag("everywhere")
+                    Section("Regions") {
+                        ForEach(regions, id: \.id) { region in
+                            Text(region.displayName).tag("region:\(region.id)")
+                        }
+                    }
+                    Text("All U.S.").tag("everywhere")
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
@@ -387,6 +426,7 @@ private struct PhotoGeographyPicker: View {
             get: {
                 switch mode {
                 case .automatic: "automatic"
+                case .selectedState: "state:\(selectedStateCode)"
                 case .selectedRegion: "region:\(selectedRegionID)"
                 case .everywhere: "everywhere"
                 }
@@ -396,6 +436,8 @@ private struct PhotoGeographyPicker: View {
                     onModeChange(.automatic)
                 } else if value == "everywhere" {
                     onModeChange(.everywhere)
+                } else if value.hasPrefix("state:") {
+                    onStateChange(String(value.dropFirst("state:".count)))
                 } else if value.hasPrefix("region:") {
                     onRegionChange(String(value.dropFirst("region:".count)))
                 }
@@ -412,6 +454,7 @@ private struct PhotoResultsPanel: View {
     var assetSummary: BioCAPAssetSummary?
     var addedScientificNames: Set<String>
     var addingScientificName: String?
+    var onSearchAllUS: () -> Void
     var onAddToLog: (BioCAPPhotoPrediction) -> Void
 
     var body: some View {
@@ -452,7 +495,10 @@ private struct PhotoResultsPanel: View {
             case .ready:
                 VStack(alignment: .leading, spacing: 0) {
                     if let classificationResult {
-                        PhotoIdentificationSummary(result: classificationResult)
+                        PhotoIdentificationSummary(
+                            result: classificationResult,
+                            onSearchAllUS: onSearchAllUS
+                        )
                             .padding(.bottom, 8)
                     }
                     ForEach(Array(predictions.enumerated()), id: \.offset) { index, prediction in
@@ -475,6 +521,7 @@ private struct PhotoResultsPanel: View {
 
 private struct PhotoIdentificationSummary: View {
     var result: BioCAPClassificationResult
+    var onSearchAllUS: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -485,9 +532,15 @@ private struct PhotoIdentificationSummary: View {
                 .font(.serif(13))
                 .foregroundStyle(Color.inkSoft)
             if let geographyName = result.appliedGeographyName {
-                Text("\(geographyName) matches prioritized")
+                Text("Searched species recorded in \(geographyName)")
                     .font(.mono(10, .medium))
                     .foregroundStyle(Color.inkFaint)
+            }
+            if result.shouldOfferAllUSSearch {
+                Button("Search all U.S.", action: onSearchAllUS)
+                    .font(.serif(13, .semibold))
+                    .foregroundStyle(Color.rust)
+                    .padding(.top, 4)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

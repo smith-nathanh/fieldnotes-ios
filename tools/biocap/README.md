@@ -38,9 +38,10 @@ checkout can install the exact production bundle from GCS with:
 uv run --python .venv-biocap/bin/python tools/biocap/install_ios_assets.py
 ```
 
-The tracked `assets/nc-regional-birdnet-travel-v2.json` manifest verifies the
-191,588,494-byte archive SHA-256, rejects unexpected archive members, then
-verifies the size and SHA-256 of all eight model, catalog, and fixture files.
+The tracked `assets/us-regional-v1-state-scope.json` manifest verifies the
+262,221,222-byte archive SHA-256, rejects unexpected archive members, then
+verifies the size and SHA-256 of all nine model, catalog, geography, and fixture
+files. It installs 52,762 U.S. species plus 51-state and nine-region membership.
 Pass `--archive` to verify and install an existing download without GCS access.
 
 To package a future validated release:
@@ -48,15 +49,14 @@ To package a future validated release:
 ```sh
 uv run --python .venv-biocap/bin/python tools/biocap/package_ios_assets.py \
   --input-dir Fieldnotes/Fieldnotes/Resources/BioCAP \
-  --version nc-regional-birdnet-travel-v2 \
-  --gcs-uri gs://fieldnotes-biocap/ios-assets/nc-regional-birdnet-travel-v2/fieldnotes-biocap-nc-regional-birdnet-travel-v2.tar.gz \
-  --archive tmp/biocap-ios-assets/fieldnotes-biocap-nc-regional-birdnet-travel-v2.tar.gz \
-  --manifest tools/biocap/assets/nc-regional-birdnet-travel-v2.json
+  --version us-regional-v1-state-scope \
+  --gcs-uri gs://fieldnotes-biocap/ios-assets/us-regional-v1-state-scope/fieldnotes-biocap-us-regional-v1-state-scope.tar.gz \
+  --archive tmp/biocap-ios-assets/fieldnotes-biocap-us-regional-v1-state-scope.tar.gz \
+  --manifest tools/biocap/assets/us-regional-v1-state-scope.json
 ```
 
-Use a normal non-composite GCS upload for this distributable. The tracked
-production object has GCS CRC32C and MD5 metadata in addition to the
-installer-enforced SHA-256.
+The tracked production object records its GCS generation and CRC32C metadata;
+the installer independently enforces the archive SHA-256 after download.
 
 ## North Carolina Product Baseline
 
@@ -1061,9 +1061,9 @@ That writes generated resources under
 - `TestFixtures/BioCAPFixture.jpg` and `.json`: one top-1 fixture for XCTest.
 
 The generated directory is ignored by Git because the model package is about
-165 MB and should be regenerated from validation artifacts. In this full-list
-spike, the raw float32 text matrix is about 13 MB and the generated BioCAP
-resource directory is about 178 MB.
+165 MB and should be restored from the versioned asset archive. The U.S. float32
+text matrix is 108,056,576 bytes, species metadata is 27,016,838 bytes, and the
+geography table is 422,096 bytes.
 
 The iOS spike currently consists of:
 

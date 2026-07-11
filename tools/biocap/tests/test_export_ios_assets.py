@@ -11,10 +11,31 @@ import numpy as np
 TOOLS_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS_DIR))
 
-from export_ios_assets import build_geography_export, validated_embeddings  # noqa: E402
+from export_ios_assets import (  # noqa: E402
+    build_geography_export,
+    choose_fixture,
+    validated_embeddings,
+)
 
 
 class ExportIOSAssetsTests(unittest.TestCase):
+    def test_fixture_paths_resolve_relative_to_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            image = root / "images" / "fixture.jpg"
+            image.parent.mkdir()
+            image.write_bytes(b"fixture")
+            manifest = root / "benchmark_manifest.jsonl"
+            manifest.write_text(
+                '{"path":"images/fixture.jpg","expectedScientificName":"Alpha one"}\n',
+                encoding="utf-8",
+            )
+
+            fixture = choose_fixture(manifest, None, "Alpha one")
+
+            self.assertIsNotNone(fixture)
+            self.assertEqual(Path(str(fixture["path"])), image)
+
     def test_geography_export_uses_stable_state_bits_and_region_mapping(self) -> None:
         config, masks = build_geography_export(
             [
@@ -35,14 +56,17 @@ class ExportIOSAssetsTests(unittest.TestCase):
                     {"id": "pacific", "displayName": "Pacific"},
                 ],
                 "membershipPlaces": [
-                    {"code": "US-VA", "regionID": "southeast"},
-                    {"code": "US-NC", "regionID": "southeast"},
-                    {"code": "US-CA", "regionID": "pacific"},
+                    {"code": "US-VA", "name": "Virginia", "regionID": "southeast"},
+                    {"code": "US-NC", "name": "North Carolina", "regionID": "southeast"},
+                    {"code": "US-CA", "name": "California", "regionID": "pacific"},
                 ],
             },
         )
 
         self.assertEqual(config["stateCodes"], ["US-VA", "US-NC", "US-CA"])
+        self.assertEqual(
+            config["stateDisplayNames"], ["Virginia", "North Carolina", "California"]
+        )
         self.assertEqual(config["stateRegionIndices"], [0, 0, 1])
         self.assertEqual(masks.dtype, np.dtype("<u8"))
         self.assertEqual(masks.tolist(), [0b011, 0b100])
@@ -63,7 +87,7 @@ class ExportIOSAssetsTests(unittest.TestCase):
                         {"id": "pacific", "displayName": "Pacific"},
                     ],
                     "membershipPlaces": [
-                        {"code": "US-NC", "regionID": "southeast"}
+                        {"code": "US-NC", "name": "North Carolina", "regionID": "southeast"}
                     ],
                 },
             )
