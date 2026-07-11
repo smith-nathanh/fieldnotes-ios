@@ -1,8 +1,8 @@
 {
   "archive": {
-    "bytes": 262221222,
+    "bytes": 262222343,
     "filename": "fieldnotes-biocap-us-regional-v1-state-scope.tar.gz",
-    "sha256": "e3916a700806b803a9322742f03788b96dce70a4dd5ae61535819b53822d48fd"
+    "sha256": "fd7c81ba6f176332c60a53db17807b71c41122c6857c3619b2b18d51435277c6"
   },
   "assetVersion": "us-regional-v1-state-scope",
   "config": {
@@ -213,6 +213,7 @@
     "promptTemplateCount": 81,
     "speciesCount": 52762
   },
+  "downloadURL": "https://github.com/smith-nathanh/fieldnotes-ios/releases/download/biocap-us-regional-v1-state-scope/fieldnotes-biocap-us-regional-v1-state-scope.tar.gz",
   "files": [
     {
       "bytes": 3241,
@@ -250,6 +251,11 @@
       "sha256": "27a726d9b14504034cfb797c5a9c4b33baf06fb424c6afb836232ded52254767"
     },
     {
+      "bytes": 1471,
+      "path": "BioCAP/THIRD_PARTY_NOTICES.md",
+      "sha256": "da26422576f02192e92cf44054e9e5e5fa97bba92006e9b7d74322912e642613"
+    },
+    {
       "bytes": 138243,
       "path": "BioCAP/TestFixtures/BioCAPFixture.jpg",
       "sha256": "25e98b6fa4206e66f117d02d754263328cd0e8e81d7cc97edab8caaf4d6581df"
@@ -260,12 +266,5 @@
       "sha256": "6e6290916b7c3eff21d0c8bcff9b9f0f0e6ce00fd4965f146fda72bf04dcda21"
     }
   ],
-  "gcsURI": "gs://fieldnotes-biocap/ios-assets/us-regional-v1-state-scope/fieldnotes-biocap-us-regional-v1-state-scope.tar.gz",
-  "gcsObject": {
-    "componentCount": 6,
-    "crc32c": "ltY1/g==",
-    "generation": "1783734500427199",
-    "uploadType": "composite"
-  },
   "schemaVersion": 1
 }

@@ -32,17 +32,17 @@ into frontend ops that coremltools cannot lower.
 ## Install the Versioned iOS Assets
 
 Generated model and catalog files are intentionally ignored by Git. A fresh
-checkout can install the exact production bundle from GCS with:
+checkout can install the exact production bundle from its GitHub release with:
 
 ```sh
-uv run --python .venv-biocap/bin/python tools/biocap/install_ios_assets.py
+python3 tools/biocap/install_ios_assets.py
 ```
 
 The tracked `assets/us-regional-v1-state-scope.json` manifest verifies the
-262,221,222-byte archive SHA-256, rejects unexpected archive members, then
-verifies the size and SHA-256 of all nine model, catalog, geography, and fixture
-files. It installs 52,762 U.S. species plus 51-state and nine-region membership.
-Pass `--archive` to verify and install an existing download without GCS access.
+262,222,343-byte archive SHA-256, rejects unexpected archive members, then
+verifies the size and SHA-256 of all ten model, catalog, geography, license, and
+fixture files. It installs 52,762 U.S. species plus 51-state and nine-region
+membership. Pass `--archive` to verify and install an existing local download.
 
 To package a future validated release:
 
@@ -50,13 +50,13 @@ To package a future validated release:
 uv run --python .venv-biocap/bin/python tools/biocap/package_ios_assets.py \
   --input-dir Fieldnotes/Fieldnotes/Resources/BioCAP \
   --version us-regional-v1-state-scope \
-  --gcs-uri gs://fieldnotes-biocap/ios-assets/us-regional-v1-state-scope/fieldnotes-biocap-us-regional-v1-state-scope.tar.gz \
+  --download-url https://github.com/smith-nathanh/fieldnotes-ios/releases/download/biocap-us-regional-v1-state-scope/fieldnotes-biocap-us-regional-v1-state-scope.tar.gz \
   --archive tmp/biocap-ios-assets/fieldnotes-biocap-us-regional-v1-state-scope.tar.gz \
   --manifest tools/biocap/assets/us-regional-v1-state-scope.json
 ```
 
-The tracked production object records its GCS generation and CRC32C metadata;
-the installer independently enforces the archive SHA-256 after download.
+The installer independently enforces the tracked archive and per-file SHA-256
+after download.
 
 ## North Carolina Product Baseline
 

@@ -16,6 +16,7 @@ GENERATED_PATHS = (
     "BioCAPConfig.json",
     "BioCAPSpecies.json",
     "BioCAPTextEmbeddings.f32",
+    "THIRD_PARTY_NOTICES.md",
     "Models",
     "TestFixtures",
 )
@@ -26,7 +27,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-dir", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--version", required=True)
-    parser.add_argument("--gcs-uri", required=True)
+    parser.add_argument("--gcs-uri")
+    parser.add_argument("--download-url")
     parser.add_argument("--archive", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
     return parser.parse_args()
@@ -82,7 +84,6 @@ def main() -> None:
     manifest = {
         "schemaVersion": 1,
         "assetVersion": args.version,
-        "gcsURI": args.gcs_uri,
         "archive": {
             "filename": args.archive.name,
             "bytes": args.archive.stat().st_size,
@@ -107,6 +108,10 @@ def main() -> None:
             for path in files
         ],
     }
+    if args.gcs_uri:
+        manifest["gcsURI"] = args.gcs_uri
+    if args.download_url:
+        manifest["downloadURL"] = args.download_url
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
     args.manifest.write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",

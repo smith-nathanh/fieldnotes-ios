@@ -12,6 +12,7 @@ import subprocess
 import tarfile
 import tempfile
 from pathlib import Path
+from urllib.request import Request, urlopen
 
 
 DEFAULT_MANIFEST = Path(
@@ -54,7 +55,19 @@ def verify(path: Path, expected: dict[str, object]) -> None:
         )
 
 
-def download(gcs_uri: str, destination: Path) -> None:
+def download_http(url: str, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    partial = destination.with_suffix(destination.suffix + ".part")
+    request = Request(url, headers={"User-Agent": "Fieldnotes-BioCAP-installer"})
+    try:
+        with urlopen(request) as response, partial.open("wb") as output:
+            shutil.copyfileobj(response, output, length=1024 * 1024)
+        partial.replace(destination)
+    finally:
+        partial.unlink(missing_ok=True)
+
+
+def download_gcs(gcs_uri: str, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     gsutil = shutil.which("gsutil")
     gcloud = shutil.which("gcloud")
@@ -94,7 +107,11 @@ def main() -> None:
     if archive_path is None:
         archive_path = args.download_dir / str(archive_metadata["filename"])
         if not archive_path.exists():
-            download(str(manifest["gcsURI"]), archive_path)
+            download_url = manifest.get("downloadURL")
+            if download_url:
+                download_http(str(download_url), archive_path)
+            else:
+                download_gcs(str(manifest["gcsURI"]), archive_path)
     verify(archive_path, archive_metadata)
 
     with tempfile.TemporaryDirectory(prefix="fieldnotes-biocap-") as temporary:
@@ -116,7 +133,12 @@ def main() -> None:
         source = extraction_root / "BioCAP"
         output = args.output_dir.resolve()
         output.mkdir(parents=True, exist_ok=True)
-        for name in ("BioCAPConfig.json", "BioCAPSpecies.json", "BioCAPTextEmbeddings.f32"):
+        for name in (
+            "BioCAPConfig.json",
+            "BioCAPSpecies.json",
+            "BioCAPTextEmbeddings.f32",
+            "THIRD_PARTY_NOTICES.md",
+        ):
             shutil.copy2(source / name, output / name)
         geography_source = source / "BioCAPGeography.bin"
         geography_destination = output / geography_source.name

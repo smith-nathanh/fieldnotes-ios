@@ -38,6 +38,7 @@ class IOSAssetBundleTests(unittest.TestCase):
             (source / "BioCAPConfig.json").write_text(json.dumps(config))
             (source / "BioCAPSpecies.json").write_text("[]")
             (source / "BioCAPTextEmbeddings.f32").write_bytes(b"12345678")
+            (source / "THIRD_PARTY_NOTICES.md").write_text("BioCAP test notice")
             (source / "BioCAPGeography.bin").write_bytes(b"\x01\x00\x00\x00\x00\x00\x00\x00")
             (source / "Models" / "Example.mlpackage" / "model.bin").write_bytes(b"model")
             (source / "TestFixtures" / "fixture.jpg").write_bytes(b"fixture")
@@ -55,6 +56,8 @@ class IOSAssetBundleTests(unittest.TestCase):
                     "test-v1",
                     "--gcs-uri",
                     "gs://example/assets.tar.gz",
+                    "--download-url",
+                    archive.as_uri(),
                     "--archive",
                     str(archive),
                     "--manifest",
@@ -70,8 +73,8 @@ class IOSAssetBundleTests(unittest.TestCase):
                     str(INSTALLER),
                     "--manifest",
                     str(manifest),
-                    "--archive",
-                    str(archive),
+                    "--download-dir",
+                    str(root / "download"),
                     "--output-dir",
                     str(output),
                 ],
@@ -81,6 +84,10 @@ class IOSAssetBundleTests(unittest.TestCase):
             )
 
             self.assertEqual((output / "BioCAPTextEmbeddings.f32").read_bytes(), b"12345678")
+            self.assertEqual(
+                (output / "THIRD_PARTY_NOTICES.md").read_text(),
+                "BioCAP test notice",
+            )
             self.assertEqual(
                 (output / "BioCAPGeography.bin").read_bytes(),
                 b"\x01\x00\x00\x00\x00\x00\x00\x00",
