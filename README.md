@@ -5,18 +5,21 @@
 <h1 align="center">Fieldnotes</h1>
 
 <p align="center">
-  A private, offline-first wildlife field guide for iPhone.
+  Record the call. Remember the name.
 </p>
 
-Fieldnotes turns an iPhone into a local wildlife notebook. It can listen for
-nearby animals, identify wildlife in photos, preserve representative recordings
-and images, and organize observations by species, outing, place, map, and
-statistics. BirdNET v2.4 powers live sound identification, while a custom
-on-device BioCAP pipeline compares each photo with a U.S.-wide animal catalog.
+Birdsong on a morning walk. An unfamiliar moth at the porch light. Fieldnotes
+helps you identify the wildlife you encounter and keep a lasting record of
+what you find.
 
-The app is designed to work in the field without a network connection. Model
-inference happens on the phone, and saved clips, photos, locations, and field-log
-data remain in app-local storage.
+Listen for nearby birds, insects, frogs, and mammals, or identify an animal from
+a photo. Fieldnotes saves useful recordings and images, then organizes your
+observations into species, outings, trips, places, maps, and statistics—building
+a personal field record that grows every time you head outside.
+
+Classification happens entirely on your iPhone using BirdNET and BioCAP. No
+network connection is required in the field, and your recordings, photos,
+locations, and observations remain in app-local storage.
 
 ## Build From Xcode
 
@@ -83,13 +86,12 @@ Audio classification uses BirdNET v2.4 through TensorFlow Lite:
 The metadata model provides range/season gating from latitude, longitude, and
 week when location is available.
 
-BirdNET's model files are licensed separately from Fieldnotes under
-[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). They may
-be shared and adapted with attribution for noncommercial use; adapted model
-material must retain the same license. Commercial use requires separate
-permission from the BirdNET team. See the bundled
+BirdNET's model weights are provided under
+[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) for
+noncommercial use. BioCAP is MIT-licensed. See the
 [BirdNET model notice](Fieldnotes/Fieldnotes/Resources/Models/BirdNET_NOTICE.md)
-for attribution, modification status, source links, and the requested citation.
+and [BioCAP notice](Fieldnotes/Fieldnotes/Resources/BioCAP/THIRD_PARTY_NOTICES.md)
+for attribution and full terms.
 
 Image classification uses BioCAP (`imageomics/biocap`) as an on-device
 CLIP-style retrieval pipeline. Fieldnotes exports the BioCAP vision encoder to
@@ -117,14 +119,6 @@ See [Fieldnotes/Fieldnotes/Resources/BioCAP/README.md](Fieldnotes/Fieldnotes/Res
 for the asset-build history, validation gates, packaging format, distribution,
 and runtime flow.
 
-## Third-Party Licensing
-
-Fieldnotes includes third-party models and fonts whose licenses travel with
-their respective assets. In particular, BioCAP is MIT-licensed, while the
-BirdNET model weights are CC BY-NC-SA 4.0 and restricted to noncommercial use
-unless the BirdNET team grants separate permission. Model credits and license
-links are also available inside the app on the Statistics tab.
-
 ## Tests
 
 Core package tests:
@@ -141,6 +135,12 @@ xcodebuild -workspace Fieldnotes/Fieldnotes.xcworkspace \
   -destination 'generic/platform=iOS' \
   CODE_SIGNING_ALLOWED=NO build
 ```
+
+## License
+
+The original Fieldnotes source code is available under the [MIT License](LICENSE).
+Third-party models, fonts, and other bundled assets are not covered by that
+license and remain under their accompanying terms and notices.
 
 ## Repo Layout
 
